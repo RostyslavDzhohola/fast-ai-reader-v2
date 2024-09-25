@@ -23,6 +23,9 @@
     "zip": "npm run build && node src/zip.js"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^0.0.62",
+    "ai": "^3.4.2",
+    "openai": "^4.63.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

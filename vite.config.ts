@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import { crx } from '@crxjs/vite-plugin'
 import react from '@vitejs/plugin-react'
-
 import manifest from './src/manifest'
+import secrets from './secrets.development.js'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -22,5 +22,8 @@ export default defineConfig(({ mode }) => {
     },
 
     plugins: [crx({ manifest }), react()],
+    define: {
+      'process.env.OPENAI_API_KEY': JSON.stringify(secrets.OPENAI_API_KEY),
+    },
   }
 })
