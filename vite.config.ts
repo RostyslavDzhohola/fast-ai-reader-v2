@@ -7,6 +7,10 @@ import manifest from './src/manifest'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   return {
+    server: {
+      port: 5173, // or any other port you prefer
+      strictPort: true,
+    },
     build: {
       emptyOutDir: true,
       outDir: 'build',
