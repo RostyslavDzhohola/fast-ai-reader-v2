@@ -17,7 +17,7 @@ export default defineManifest({
   },
   action: {
     default_icon: 'img/logo-48.png',
-    default_title: 'Discord Side Panel',
+    default_title: 'Fast AI Reader',
   },
   options_page: 'options.html',
   devtools_page: 'devtools.html',

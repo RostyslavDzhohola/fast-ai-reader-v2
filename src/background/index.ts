@@ -54,6 +54,11 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 })
 
 // Set the side panel to open when the extension action is clicked
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((err) => {
-  console.error('Error setting side panel behavior:', err)
-})
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .then(() => {
+    console.log('Side panel behavior set successfully')
+  })
+  .catch((err) => {
+    console.error('Error setting side panel behavior:', err)
+  })
