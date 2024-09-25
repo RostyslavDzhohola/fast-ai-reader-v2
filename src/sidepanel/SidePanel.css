@@ -25,3 +25,8 @@ a {
   color: #cccccc;
   text-decoration: none;
 }
+
+.url-display {
+  margin-top: 10px;
+  word-break: break-all;
+}

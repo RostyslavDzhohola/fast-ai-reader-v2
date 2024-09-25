@@ -1,10 +1,11 @@
 import './SidePanel.css'
 
-export const SidePanel = () => {
+export const SidePanel: React.FC = () => {
   return (
     <main>
-      <h3>SidePanel Page</h3>
-      <p>side panel for discord </p>
+      <h3>Discord Side Panel</h3>
+      <p>Check the console for the current URL.</p>
+      <p>the chat interactions will be here</p>
     </main>
   )
 }
