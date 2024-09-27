@@ -217,9 +217,7 @@ export const SidePanel: React.FC = () => {
                 key={index}
                 className={`message ${message.role} ${message.isExtracted ? 'extracted' : ''}`}
               >
-                <div className="message-content">
-                  {message.isExtracted ? <pre>{message.content}</pre> : <p>{message.content}</p>}
-                </div>
+                <pre>{message.content}</pre>
               </div>
             ))
           ) : (

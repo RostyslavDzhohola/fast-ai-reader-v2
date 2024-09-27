@@ -98,17 +98,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 })
 
 // Function to extract Discord messages
-async function extractDiscordMessages(count: number): Promise<string[]> {
+async function extractDiscordMessages(messageCount: number): Promise<string[]> {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab.id) throw new Error('No active tab found')
 
     const result = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: (messageCount) => {
+      func: (count) => {
         const messages = []
         const messageElements = document.querySelectorAll('[id^="chat-messages-"]')
-        const startIndex = Math.max(0, messageElements.length - messageCount)
+        const startIndex = Math.max(0, messageElements.length - count)
 
         for (let i = startIndex; i < messageElements.length; i++) {
           const messageElement = messageElements[i]
@@ -121,17 +121,16 @@ async function extractDiscordMessages(count: number): Promise<string[]> {
             const timestamp = timestampElement.textContent?.trim() || 'Unknown Time'
             const content = contentElement.textContent?.trim() || ''
 
-            const formattedMessage = `${username} | ${timestamp}\n${content}\n\n---\n\n`
+            const formattedMessage = `${username} | ${timestamp}\n${content}\n\n`
             messages.push(formattedMessage)
           }
         }
 
         return messages
       },
-      args: [count],
+      args: [messageCount],
     })
 
-    // Return the array of formatted messages
     return result[0].result
   } catch (error) {
     console.error('Error in extractDiscordMessages:', error)
