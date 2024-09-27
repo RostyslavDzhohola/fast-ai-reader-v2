@@ -99,6 +99,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Function to extract Discord messages
 async function extractDiscordMessages(messageCount: number): Promise<string[]> {
+  // TODO: Implement scrolling feature if there is not enough list item in the viewport.
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab.id) throw new Error('No active tab found')
