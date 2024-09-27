@@ -276,3 +276,18 @@ body {
 .research-button:hover {
   background-color: #45a049;
 }
+
+.message.extracted {
+  background-color: #ff8c00; /* Dark orange background */
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.message.extracted .message-content pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: monospace;
+  margin: 0;
+}

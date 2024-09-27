@@ -82,6 +82,63 @@ chrome.action.onClicked.addListener((tab) => {
   }
 })
 
+// Add this new message listener
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'extractMessages') {
+    extractDiscordMessages(request.count)
+      .then((messages) => {
+        sendResponse({ messages })
+      })
+      .catch((error) => {
+        console.error('Error extracting messages:', error)
+        sendResponse({ error: 'Failed to extract messages' })
+      })
+    return true // Indicates that the response is sent asynchronously
+  }
+})
+
+// Function to extract Discord messages
+async function extractDiscordMessages(count: number): Promise<string[]> {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!tab.id) throw new Error('No active tab found')
+
+    const result = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (messageCount) => {
+        const messages = []
+        const messageElements = document.querySelectorAll('[id^="chat-messages-"]')
+        const startIndex = Math.max(0, messageElements.length - messageCount)
+
+        for (let i = startIndex; i < messageElements.length; i++) {
+          const messageElement = messageElements[i]
+          const usernameElement = messageElement.querySelector('span[id^="message-username-"]')
+          const timestampElement = messageElement.querySelector('time')
+          const contentElement = messageElement.querySelector('div[id^="message-content-"]')
+
+          if (usernameElement && timestampElement && contentElement) {
+            const username = usernameElement.textContent?.trim() || 'Unknown User'
+            const timestamp = timestampElement.textContent?.trim() || 'Unknown Time'
+            const content = contentElement.textContent?.trim() || ''
+
+            const formattedMessage = `${username} | ${timestamp}\n${content}\n\n---\n\n`
+            messages.push(formattedMessage)
+          }
+        }
+
+        return messages
+      },
+      args: [count],
+    })
+
+    // Return the array of formatted messages
+    return result[0].result
+  } catch (error) {
+    console.error('Error in extractDiscordMessages:', error)
+    throw error
+  }
+}
+
 function handleError(error: Error) {
   console.error('An error occurred:', error.message)
   if (error.message.includes('Extension context invalidated')) {

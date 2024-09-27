@@ -7,6 +7,7 @@ import { openai } from '@ai-sdk/openai'
 type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
+  isExtracted?: boolean // New property to indicate extracted messages
 }
 
 export const SidePanel: React.FC = () => {
@@ -104,14 +105,98 @@ export const SidePanel: React.FC = () => {
   }
 
   const handleModalSubmit = () => {
-    // Here we would send a message to the background script
-    // For now, we'll just log the message count
     console.log(`Requesting to extract ${messageCount} messages`)
+
+    // Send a message to the background script
+    chrome.runtime.sendMessage({ action: 'extractMessages', count: messageCount }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error sending message:', chrome.runtime.lastError)
+        // Display an error message to the user
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'An error occurred while extracting messages. Please try again.',
+          },
+        ])
+        return
+      }
+
+      console.log('Received response from background script:', response)
+
+      if (response && response.messages && response.messages.length > 0) {
+        // Process the received messages
+        processReceivedMessages(response.messages)
+      } else if (response && response.error) {
+        console.error('Error extracting messages:', response.error, response.details)
+        // Display an error message to the user
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `An error occurred while extracting messages: ${response.error}`,
+          },
+        ])
+      } else {
+        console.error('No messages received in the response')
+        // Display an error message to the user
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              'No messages were extracted. The chat might be empty or there might be an issue with message extraction.',
+          },
+        ])
+      }
+    })
 
     // Close the modal
     setIsModalOpen(false)
+  }
 
-    // TODO: Implement message sending to background script
+  // New function to process received messages
+  const processReceivedMessages = (messages: string[]) => {
+    console.log(`Processing ${messages.length} received messages`)
+
+    // Combine messages into a single string
+    const messagesText = messages.join('')
+    console.log('Combined messages text:', messagesText)
+
+    // Create a system message for the AI
+    const systemMessage: ChatMessage = {
+      role: 'user',
+      content: `I have extracted ${messages.length} messages from a Discord chat. Please analyze these messages and be ready to answer questions about them. Here are the messages:\n\n${messagesText}`,
+      isExtracted: true, // Mark this as an extracted message
+    }
+
+    console.log('Created system message:', systemMessage)
+
+    // Add the system message to the chat history
+    setChatHistory((prevHistory) => {
+      console.log('Updating chat history with system message')
+      return [...prevHistory, systemMessage]
+    })
+
+    // Create an AI response message
+    const aiResponse: ChatMessage = {
+      role: 'assistant',
+      content:
+        "I've received and processed the Discord messages. What questions do you have about this conversation?",
+    }
+
+    console.log('Created AI response:', aiResponse)
+
+    // Add the AI response to the chat history
+    setChatHistory((prevHistory) => {
+      console.log('Updating chat history with AI response')
+      return [...prevHistory, aiResponse]
+    })
+
+    // Save the updated chat history
+    chrome.storage.local.set({ chatHistory: [...chatHistory, systemMessage, aiResponse] }, () => {
+      console.log('Chat history saved to storage')
+    })
   }
 
   return (
@@ -128,9 +213,12 @@ export const SidePanel: React.FC = () => {
         <div className="messages" ref={outputRef}>
           {chatHistory.length > 0 ? (
             chatHistory.map((message, index) => (
-              <div key={index} className={`message ${message.role}`}>
+              <div
+                key={index}
+                className={`message ${message.role} ${message.isExtracted ? 'extracted' : ''}`}
+              >
                 <div className="message-content">
-                  <p>{message.content}</p>
+                  {message.isExtracted ? <pre>{message.content}</pre> : <p>{message.content}</p>}
                 </div>
               </div>
             ))
