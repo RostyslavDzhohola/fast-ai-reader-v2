@@ -7,58 +7,85 @@ function isDiscordUrl(url: string): boolean {
 
 // Function to set or unset the side panel based on whether the URL is Discord
 async function setSidePanelForDiscord(tabId: number, url: string) {
-  if (isDiscordUrl(url)) {
-    console.log('Setting side panel for Discord URL')
-    // Enable the side panel for Discord URLs
-    await chrome.sidePanel
-      .setOptions({
+  try {
+    if (isDiscordUrl(url)) {
+      console.log('Setting side panel for Discord URL')
+      await chrome.sidePanel.setOptions({
         tabId,
-        path: 'sidepanel.html', // Path to the side panel HTML file
+        path: 'sidepanel.html',
         enabled: true,
       })
-      .catch((err) => console.error('Error setting side panel:', err))
-  } else {
-    // Disable the side panel for non-Discord URLs
-    await chrome.sidePanel
-      .setOptions({
+    } else {
+      await chrome.sidePanel.setOptions({
         tabId,
         enabled: false,
       })
-      .catch((err) => console.error('Error disabling side panel:', err))
+    }
+  } catch (error) {
+    handleError(error as Error)
+  }
+}
+
+// Function to set popup options
+async function setPopupOptions(tabId: number, enabled: boolean) {
+  try {
+    await chrome.action.setPopup({
+      tabId,
+      popup: enabled ? 'popup.html' : '',
+    })
+  } catch (error) {
+    handleError(error as Error)
   }
 }
 
 // Function to handle tab updates and activations
 function handleTabUpdate(tabId: number, url: string | undefined) {
   if (url) {
-    console.log('Tab updated or activated:', url)
     setSidePanelForDiscord(tabId, url)
+    setPopupOptions(tabId, !isDiscordUrl(url)) // Enable popup for non-Discord pages
   }
 }
 
 // Event listener for tab updates
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only proceed if the tab has finished loading and has a URL
-  if (changeInfo.status === 'complete' && tab.url) {
-    handleTabUpdate(tabId, tab.url)
+  try {
+    if (changeInfo.status === 'complete' && tab.url) {
+      handleTabUpdate(tabId, tab.url)
+    }
+  } catch (error) {
+    handleError(error as Error)
   }
 })
 
 // Event listener for tab activation (when user switches tabs)
 chrome.tabs.onActivated.addListener((activeInfo) => {
-  chrome.tabs.get(activeInfo.tabId, (tab) => {
-    if (tab.url) {
-      handleTabUpdate(tab.id!, tab.url)
-    }
-  })
+  try {
+    chrome.tabs.get(activeInfo.tabId, (tab) => {
+      if (tab.url) {
+        handleTabUpdate(tab.id!, tab.url)
+      }
+    })
+  } catch (error) {
+    handleError(error as Error)
+  }
 })
 
-// Set the side panel to open when the extension action is clicked
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .then(() => {
-    console.log('Side panel behavior set successfully')
-  })
-  .catch((err) => {
-    console.error('Error setting side panel behavior:', err)
-  })
+// Handle extension icon click
+chrome.action.onClicked.addListener((tab) => {
+  if (tab.id && tab.url) {
+    if (isDiscordUrl(tab.url)) {
+      chrome.sidePanel.setOptions({ tabId: tab.id, enabled: true })
+    } else {
+      setPopupOptions(tab.id, true)
+      // Chrome will automatically open the popup when it's set
+    }
+  }
+})
+
+function handleError(error: Error) {
+  console.error('An error occurred:', error.message)
+  if (error.message.includes('Extension context invalidated')) {
+    console.log('Extension context invalidated. Attempting to reload...')
+    chrome.runtime.reload()
+  }
+}
