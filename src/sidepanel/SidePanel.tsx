@@ -15,6 +15,10 @@ export const SidePanel: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState<boolean>(false)
   const outputRef = useRef<HTMLDivElement>(null)
 
+  // New state for modal and message count
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
+  const [messageCount, setMessageCount] = useState<number>(10) // Default to 10 messages
+
   // Load chat history when component mounts
   useEffect(() => {
     loadChatHistory()
@@ -95,8 +99,31 @@ export const SidePanel: React.FC = () => {
     })
   }
 
+  const handleResearchClick = () => {
+    setIsModalOpen(true)
+  }
+
+  const handleModalSubmit = () => {
+    // Here we would send a message to the background script
+    // For now, we'll just log the message count
+    console.log(`Requesting to extract ${messageCount} messages`)
+
+    // Close the modal
+    setIsModalOpen(false)
+
+    // TODO: Implement message sending to background script
+  }
+
   return (
     <main className="side-panel">
+      <div className="button-container">
+        <button onClick={handleResetChat} className="reset-button">
+          Clear Chat
+        </button>
+        <button onClick={handleResearchClick} className="research-button">
+          Research
+        </button>
+      </div>
       <div className="chat-container">
         <div className="messages" ref={outputRef}>
           {chatHistory.length > 0 ? (
@@ -125,14 +152,30 @@ export const SidePanel: React.FC = () => {
         <button
           onClick={handleStreamText}
           disabled={isStreaming || !prompt.trim()}
-          className="stream-button"
+          className="ask-button"
         >
-          {isStreaming ? 'Sending...' : 'Send'}
-        </button>
-        <button onClick={handleResetChat} className="reset-button">
-          Clear Chat
+          {isStreaming ? 'Asking...' : 'Ask'}
         </button>
       </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>Research Setup</h2>
+            <p>How many messages would you like to upload to AI?</p>
+            <input
+              type="number"
+              value={messageCount}
+              onChange={(e) => setMessageCount(Number(e.target.value))}
+              min="1"
+              placeholder="Enter number of messages"
+            />
+            <button onClick={handleModalSubmit}>Submit</button>
+            <button onClick={() => setIsModalOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
