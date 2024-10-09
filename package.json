@@ -1,7 +1,7 @@
 {
   "name": "fast-ai-reader-v2",
-  "displayName": "fast-ai-reader-v2",
-  "version": "0.0.0",
+  "displayName": "Fast AI Reader",
+  "version": "0.0.2",
   "author": "Rostyslav Dzhohola",
   "description": "",
   "type": "module",

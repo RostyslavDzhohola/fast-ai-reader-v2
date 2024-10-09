@@ -244,8 +244,7 @@ export const SidePanel: React.FC = () => {
     // Create an AI response message
     const aiResponse: ChatMessage = {
       role: 'assistant',
-      content:
-        "I've received and processed the Discord messages. What questions do you have about this conversation?",
+      content: `I've received and processed ${messages.length} Discord messages. What questions do you have about this conversation?`,
     }
 
     console.log('Created AI response:', aiResponse)
