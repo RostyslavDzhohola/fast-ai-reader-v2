@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import './SidePanel.css'
 import { streamText } from 'ai'
-import { openai } from '@ai-sdk/openai'
+import { createOpenAI } from '@ai-sdk/openai'
 
 // Define a type for our chat messages
 type ChatMessage = {
@@ -15,19 +15,34 @@ export const SidePanel: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('')
   const [isStreaming, setIsStreaming] = useState<boolean>(false)
   const outputRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   // New state for modal and message count
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
   const [messageCount, setMessageCount] = useState<number>(10) // Default to 10 messages
 
-  // Load chat history when component mounts
+  // New state for API key
+  const [apiKey, setApiKey] = useState<string | undefined>(undefined)
+
+  const openaiClient = createOpenAI({
+    apiKey: apiKey,
+  })
+
+  // Load chat history and API key when component mounts
   useEffect(() => {
     loadChatHistory()
+    loadApiKey()
   }, [])
 
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
+    }
+  }, [chatHistory])
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
   }, [chatHistory])
 
@@ -39,8 +54,34 @@ export const SidePanel: React.FC = () => {
     })
   }
 
+  const loadApiKey = () => {
+    chrome.storage.sync.get(['openaiApiKey'], (result) => {
+      if (result.openaiApiKey) {
+        setApiKey(result.openaiApiKey)
+        console.log('API key loaded successfully') // Add this log
+      } else {
+        console.log('No API key found in storage') // Add this log
+      }
+    })
+  }
+
   const handleStreamText = async () => {
     if (!prompt.trim()) return
+
+    // Check if API key is present
+    if (!apiKey) {
+      console.error('API key is missing') // Add this log
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'Error: API key is missing. Please set your OpenAI API key in the options page.',
+        },
+      ])
+      return
+    }
+
+    console.log('API key is present, length:', apiKey.length) // Add this log
 
     const userMessage: ChatMessage = { role: 'user', content: prompt }
     const newHistory = [...chatHistory, userMessage]
@@ -49,8 +90,10 @@ export const SidePanel: React.FC = () => {
     setIsStreaming(true)
 
     try {
+      console.log('Attempting to call streamText') // Add this log
+      console.log('API key:', apiKey) // Add this log
       const { textStream } = await streamText({
-        model: openai('gpt-4o-mini'),
+        model: openaiClient('gpt-4o-mini'),
         messages: [
           {
             role: 'system',
@@ -78,13 +121,23 @@ export const SidePanel: React.FC = () => {
       chrome.storage.local.set({ chatHistory: updatedHistory })
     } catch (error) {
       console.error('Error streaming text:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2)) // Add this detailed error log
       setChatHistory((prev) => [
         ...prev,
-        { role: 'assistant', content: 'An error occurred while streaming text.' },
+        {
+          role: 'assistant',
+          content:
+            'An error occurred while streaming text. Please check the console for more details.',
+        },
       ])
     } finally {
       setIsStreaming(false)
     }
+  }
+
+  const handleOpenOptions = () => {
+    const optionsUrl = chrome.runtime.getURL('options.html')
+    window.open(optionsUrl, '_blank')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -101,6 +154,16 @@ export const SidePanel: React.FC = () => {
   }
 
   const handleResearchClick = () => {
+    if (!apiKey) {
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'Error: API key is missing. Please set your OpenAI API key in the options page.',
+        },
+      ])
+      return
+    }
     setIsModalOpen(true)
   }
 
@@ -199,6 +262,20 @@ export const SidePanel: React.FC = () => {
     })
   }
 
+  if (!apiKey) {
+    return (
+      <main className="side-panel">
+        <div className="api-key-missing">
+          <h2>API Key Required</h2>
+          <p>Please add your OpenAI API key to use the chat feature.</p>
+          <button onClick={handleOpenOptions} className="options-button">
+            Add API Key
+          </button>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="side-panel">
       <div className="button-container">
@@ -209,7 +286,7 @@ export const SidePanel: React.FC = () => {
           Research
         </button>
       </div>
-      <div className="chat-container">
+      <div className="chat-container" ref={chatContainerRef}>
         <div className="messages" ref={outputRef}>
           {chatHistory.length > 0 ? (
             chatHistory.map((message, index) => (
@@ -233,11 +310,11 @@ export const SidePanel: React.FC = () => {
           onKeyDown={handleKeyDown}
           placeholder="Type your message here..."
           className="prompt-input"
-          disabled={isStreaming}
+          disabled={isStreaming || !apiKey}
         />
         <button
           onClick={handleStreamText}
-          disabled={isStreaming || !prompt.trim()}
+          disabled={isStreaming || !prompt.trim() || !apiKey}
           className="ask-button"
         >
           {isStreaming ? 'Asking...' : 'Ask'}

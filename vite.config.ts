@@ -22,8 +22,5 @@ export default defineConfig(({ mode }) => {
     },
 
     plugins: [crx({ manifest }), react()],
-    define: {
-      'process.env.OPENAI_API_KEY': JSON.stringify(secrets.OPENAI_API_KEY),
-    },
   }
 })

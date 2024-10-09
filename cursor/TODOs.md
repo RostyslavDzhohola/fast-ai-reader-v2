@@ -2,7 +2,7 @@
 
 ## Security and API Key Management
 
-- [ ] Prevent secret from being committed during build:
+- ✅ Prevent secret from being committed during build:
 
   - [ ] Investigate ways to exclude secrets from the build process
   - [ ] Consider using environment variables or a secure secret management system
