@@ -99,8 +99,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Function to extract Discord messages
 async function extractDiscordMessages(messageCount: number): Promise<string[]> {
-  // TODO: Implement scrolling feature if there is not enough list item in the viewport.
-  // TODO: Bug -> It does not load the follow-up messages if the same user sent another message.
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab.id) throw new Error('No active tab found')
@@ -108,27 +106,59 @@ async function extractDiscordMessages(messageCount: number): Promise<string[]> {
     const result = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: (count) => {
-        const messages = []
-        const messageElements = document.querySelectorAll('[id^="chat-messages-"]')
-        const startIndex = Math.max(0, messageElements.length - count)
+        const messages: string[] = []
+        const maxScrollAttempts = 10
+        let scrollAttempts = 0
 
-        for (let i = startIndex; i < messageElements.length; i++) {
-          const messageElement = messageElements[i]
-          const usernameElement = messageElement.querySelector('span[id^="message-username-"]')
-          const timestampElement = messageElement.querySelector('time')
-          const contentElement = messageElement.querySelector('div[id^="message-content-"]')
+        // Function to scroll the chat window
+        function scrollChatUp() {
+          const chatContainer = document.querySelector('[class*="messagesWrapper_"]')
+          if (chatContainer) {
+            chatContainer.scrollTop -= chatContainer.clientHeight
+            return true
+          }
+          return false
+        }
 
-          if (usernameElement && timestampElement && contentElement) {
-            const username = usernameElement.textContent?.trim() || 'Unknown User'
-            const timestamp = timestampElement.textContent?.trim() || 'Unknown Time'
-            const content = contentElement.textContent?.trim() || ''
+        // Function to extract messages
+        function extractMessages() {
+          const messageGroups = document.querySelectorAll('[id^="chat-messages-"]')
+          let currentUsername = ''
+          let currentTimestamp = ''
 
-            const formattedMessage = `${username} | ${timestamp}\n${content}\n\n`
-            messages.push(formattedMessage)
+          messageGroups.forEach((group) => {
+            const usernameElement = group.querySelector('span[id^="message-username-"]')
+            const timestampElement = group.querySelector('time')
+            const contentElements = group.querySelectorAll('div[id^="message-content-"]')
+
+            if (usernameElement && timestampElement) {
+              currentUsername = usernameElement.textContent?.trim() || 'Unknown User'
+              currentTimestamp = timestampElement.textContent?.trim() || 'Unknown Time'
+            }
+
+            contentElements.forEach((contentElement) => {
+              const content = contentElement.textContent?.trim() || ''
+              const formattedMessage = `${currentUsername} | ${currentTimestamp}\n${content}\n\n`
+              messages.push(formattedMessage)
+            })
+          })
+        }
+
+        // Main extraction loop
+        while (messages.length < count && scrollAttempts < maxScrollAttempts) {
+          extractMessages()
+
+          if (messages.length < count) {
+            const scrolled = scrollChatUp()
+            if (!scrolled) break // Exit if we can't scroll anymore
+
+            scrollAttempts++
+            // Wait for new messages to load after scrolling
+            new Promise((resolve) => setTimeout(resolve, 1000))
           }
         }
 
-        return messages
+        return messages.slice(-count) // Return only the requested number of messages
       },
       args: [messageCount],
     })
