@@ -81,7 +81,7 @@ export const SidePanel: React.FC = () => {
       return
     }
 
-    console.log('API key is present, length:', apiKey.length) // Add this log
+    // console.log('API key is present, length:', apiKey.length) // Add this log
 
     const userMessage: ChatMessage = { role: 'user', content: prompt }
     const newHistory = [...chatHistory, userMessage]
@@ -91,7 +91,7 @@ export const SidePanel: React.FC = () => {
 
     try {
       console.log('Attempting to call streamText') // Add this log
-      console.log('API key:', apiKey) // Add this log
+      // console.log('API key:', apiKey) // Add this log
       const { textStream } = await streamText({
         model: openaiClient('gpt-4o-mini'),
         messages: [
@@ -102,6 +102,9 @@ export const SidePanel: React.FC = () => {
           },
           ...newHistory.map((msg) => ({ role: msg.role, content: msg.content })),
         ],
+        onFinish(result) {
+          console.log('Result of the onFinish:', result)
+        },
       })
 
       let assistantResponse = ''
