@@ -93,7 +93,7 @@ export const SidePanel: React.FC = () => {
       console.log('Attempting to call streamText') // Add this log
       // console.log('API key:', apiKey) // Add this log
       const { textStream } = await streamText({
-        model: openaiClient('gpt-4o-mini'),
+        model: openaiClient('gpt-4o'),
         messages: [
           {
             role: 'system',
