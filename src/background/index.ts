@@ -177,3 +177,8 @@ function handleError(error: Error) {
     chrome.runtime.reload()
   }
 }
+
+// Add this near the top of your file, after the other imports
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((error) => handleError(error as Error))

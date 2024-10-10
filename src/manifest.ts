@@ -17,7 +17,7 @@ export default defineManifest({
   },
   action: {
     default_icon: 'img/logo-48.png',
-    default_title: 'Fast AI Reader',
+    default_title: 'Click to open side panel',
   },
   options_page: 'options.html',
   devtools_page: 'devtools.html',
