@@ -102,8 +102,8 @@ export const SidePanel: React.FC = () => {
           },
           ...newHistory.map((msg) => ({ role: msg.role, content: msg.content })),
         ],
-        onFinish(result) {
-          console.log('Result of the onFinish:', result)
+        onFinish({ usage }) {
+          console.log('Usage of the onFinish:', usage)
         },
       })
 
@@ -264,6 +264,10 @@ export const SidePanel: React.FC = () => {
     })
   }
 
+  const handleContactClick = () => {
+    window.location.href = 'mailto:dzhohola@pm.me?subject=Feedback%20on%20Discord%20AI%20Extension'
+  }
+
   if (!apiKey) {
     return (
       <main className="side-panel">
@@ -286,6 +290,10 @@ export const SidePanel: React.FC = () => {
         </button>
         <button onClick={handleResearchClick} className="research-button">
           Research
+        </button>
+        <div style={{ flexGrow: 1 }}></div> {/* This will push the contact button to the right */}
+        <button onClick={handleContactClick} className="contact-button">
+          Contact
         </button>
       </div>
       <div className="chat-container" ref={chatContainerRef}>

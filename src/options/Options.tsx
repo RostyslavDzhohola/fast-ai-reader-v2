@@ -51,7 +51,7 @@ export const Options = () => {
   }
 
   return (
-    <main>
+    <main className="options-container">
       <h3>{isKeySet ? 'API Key Set' : 'API Key Required'}</h3>
       {isKeySet ? (
         <div className="api-key-set">
@@ -95,6 +95,17 @@ export const Options = () => {
             placeholder="Enter your OpenAI API key"
           />
           <button onClick={saveApiKey}>Save API Key</button>
+          <iframe
+            src="https://www.loom.com/embed/ab4e201e69664ceaa1e8139cde51f774?sid=cedc3274-2c56-4437-a761-3878af97d3be"
+            frameBorder="0"
+            allowFullScreen
+          ></iframe>
+          <p className="api-key-link">
+            Don't have an API key?{' '}
+            <a href="https://platform.openai.com/" target="_blank" rel="noopener noreferrer">
+              Get one here
+            </a>
+          </p>
         </div>
       )}
     </main>
