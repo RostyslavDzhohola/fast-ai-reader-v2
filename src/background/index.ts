@@ -43,6 +43,12 @@ function handleTabUpdate(tabId: number, url: string | undefined) {
   if (url) {
     setSidePanelForDiscord(tabId, url)
     setPopupOptions(tabId, !isDiscordUrl(url)) // Enable popup for non-Discord pages
+
+    // Check if we're returning to Discord after setting the API key
+    if (isDiscordUrl(url) && apiKeyAdditionFlag) {
+      apiKeyAdditionFlag = false // Reset the flag
+      chrome.tabs.sendMessage(tabId, { action: 'checkApiKey' })
+    }
   }
 }
 
@@ -94,6 +100,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ error: 'Failed to extract messages' })
       })
     return true // Indicates that the response is sent asynchronously
+  }
+  if (request.action === 'setApiKeyAdditionFlag') {
+    apiKeyAdditionFlag = true
   }
 })
 
@@ -182,3 +191,5 @@ function handleError(error: Error) {
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((error) => handleError(error as Error))
+
+let apiKeyAdditionFlag = false

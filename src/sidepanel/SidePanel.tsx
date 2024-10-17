@@ -32,6 +32,28 @@ export const SidePanel: React.FC = () => {
   useEffect(() => {
     loadChatHistory()
     loadApiKey()
+
+    // Add a listener for storage changes
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (changes.openaiApiKey) {
+        loadApiKey()
+      }
+    }
+
+    const handleMessage = (message: any) => {
+      if (message.action === 'reloadSidePanel') {
+        loadApiKey()
+      }
+    }
+
+    chrome.storage.onChanged.addListener(handleStorageChange)
+    chrome.runtime.onMessage.addListener(handleMessage)
+
+    // Cleanup function to remove the listener
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange)
+      chrome.runtime.onMessage.removeListener(handleMessage)
+    }
   }, [])
 
   useEffect(() => {
@@ -141,6 +163,9 @@ export const SidePanel: React.FC = () => {
   const handleOpenOptions = () => {
     const optionsUrl = chrome.runtime.getURL('options.html')
     window.open(optionsUrl, '_blank')
+
+    // Send a message to the background script to set a flag
+    chrome.runtime.sendMessage({ action: 'setApiKeyAdditionFlag' })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
