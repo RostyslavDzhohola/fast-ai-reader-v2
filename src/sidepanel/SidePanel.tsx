@@ -93,7 +93,7 @@ export const SidePanel: React.FC = () => {
       console.log('Attempting to call streamText') // Add this log
       // console.log('API key:', apiKey) // Add this log
       const { textStream } = await streamText({
-        model: openaiClient('gpt-4o'),
+        model: openaiClient('gpt-4o-mini'),
         messages: [
           {
             role: 'system',
@@ -265,7 +265,8 @@ export const SidePanel: React.FC = () => {
   }
 
   const handleContactClick = () => {
-    window.location.href = 'mailto:dzhohola@pm.me?subject=Feedback%20on%20Discord%20AI%20Extension'
+    window.location.href =
+      'mailto:rostyslav.dzhohola@pm.me?subject=Feedback%20on%20Discord%20AI%20Extension'
   }
 
   if (!apiKey) {
