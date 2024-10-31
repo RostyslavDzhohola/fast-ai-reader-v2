@@ -28,8 +28,9 @@ export default defineManifest({
   },
   content_scripts: [
     {
-      matches: ['https://discord.com/*'],
+      matches: ['*://*.discord.com/*'],
       js: ['src/contentScript/index.ts'],
+      run_at: 'document_end',
     },
   ],
   side_panel: {
@@ -41,6 +42,6 @@ export default defineManifest({
       matches: [],
     },
   ],
-  permissions: ['sidePanel', 'storage', 'tabs', 'activeTab', 'scripting'],
-  host_permissions: ['https://discord.com/*'], // Add this line for Discord host permission
+  permissions: ['storage', 'sidePanel', 'activeTab'],
+  host_permissions: ['https://discord.com/*'],
 })
