@@ -41,6 +41,6 @@ export default defineManifest({
       matches: [],
     },
   ],
-  permissions: ['sidePanel', 'storage', 'tabs', 'scripting'],
+  permissions: ['sidePanel', 'storage', 'tabs', 'activeTab', 'scripting'],
   host_permissions: ['https://discord.com/*'], // Add this line for Discord host permission
 })

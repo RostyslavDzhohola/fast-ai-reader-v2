@@ -91,13 +91,15 @@ chrome.action.onClicked.addListener((tab) => {
 // Add this new message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractMessages') {
+    console.log('Received extractMessages request:', request)
     extractDiscordMessages(request.count)
       .then((messages) => {
+        console.log('Successfully extracted messages:', messages.length)
         sendResponse({ messages })
       })
       .catch((error) => {
         console.error('Error extracting messages:', error)
-        sendResponse({ error: 'Failed to extract messages' })
+        sendResponse({ error: error.message || 'Failed to extract messages' })
       })
     return true // Indicates that the response is sent asynchronously
   }
@@ -110,7 +112,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function extractDiscordMessages(messageCount: number): Promise<string[]> {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (!tab.id) throw new Error('No active tab found')
+    if (!tab.id) {
+      console.error('No active tab found')
+      throw new Error('No active tab found')
+    }
+
+    console.log('Attempting to execute script on tab:', tab.id)
+
+    if (!chrome.scripting) {
+      console.error('chrome.scripting is undefined')
+      throw new Error('chrome.scripting API not available')
+    }
 
     const result = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -171,6 +183,11 @@ async function extractDiscordMessages(messageCount: number): Promise<string[]> {
       },
       args: [messageCount],
     })
+
+    if (!result || !result[0]) {
+      console.error('Script execution returned no results')
+      throw new Error('Script execution failed')
+    }
 
     return result[0].result
   } catch (error) {
