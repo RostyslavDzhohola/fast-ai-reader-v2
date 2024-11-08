@@ -25,6 +25,26 @@ async function setSidePanelForDiscord(tabId: number, url: string) {
   }
 }
 
+async function checkAuthAndInitialize() {
+  const token = await chrome.storage.local.get('googleToken')
+  if (!token) {
+    initializeGoogleAuth()
+  } else {
+    console.log('Google auth already initialized')
+  }
+}
+
+async function initializeGoogleAuth() {
+  try {
+    const auth = await chrome.identity.getAuthToken({ interactive: true })
+    await chrome.storage.local.set({ googleToken: auth.token })
+    return true
+  } catch (error) {
+    console.error('Authentication failed:', error)
+    throw error
+  }
+}
+
 // Function to handle tab updates and activations
 function handleTabUpdate(tabId: number, url: string | undefined) {
   if (url) {
@@ -105,6 +125,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     extractDiscordMessages(request.count)
       .then((messages) => sendResponse({ messages }))
       .catch((error) => sendResponse({ error: error.message }))
+    return true
+  }
+
+  // Add new handler for Google auth
+  if (request.action === 'initiateGoogleAuth') {
+    initializeGoogleAuth()
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error: error.message }))
     return true
   }
 })
