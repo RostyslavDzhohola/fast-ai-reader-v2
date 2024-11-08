@@ -42,6 +42,14 @@ export default defineManifest({
       matches: [],
     },
   ],
-  permissions: ['storage', 'sidePanel', 'activeTab'],
+  permissions: ['storage', 'sidePanel', 'activeTab', 'identity'],
   host_permissions: ['https://discord.com/*'],
+  oauth2: {
+    client_id: '1019983268042-5c40lbqolpkktiq16g3gaermeb2d86b9.apps.googleusercontent.com',
+    scopes: [
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile',
+    ],
+  },
+  key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv7BH4VMxlTwLIRVBPJoXj//bmEu0G+HpRlnrDtGwRdfio6i9byYOgwxttIO7zUOlJSBs8RZz+Nz6/J1/TNShlQD6KsA5tlrE/NGzGzh/0Zc/51g+1rCsnRUjSXEh8m5NZSC4Ef/p3Q126pA3X1QRLowVBmFvojlnqFJzLnSetrvT6LAtDlduN14EXNv0MpC8fDsLGIMM6N/snjjZpt+Uj7xFqCDEEhkH2kUdQ+izchuEmViToLukWRgYR1N4ty3NShVaMiCGNwBccRqrmFLqQXWag0nfhhJdsxowr3tRQ26WHE8lsQsZgNXRz4icvQ69rEq6kDxXa6VBmayNB4sT2wIDAQAB',
 })
