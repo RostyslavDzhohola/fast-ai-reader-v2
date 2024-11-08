@@ -298,7 +298,7 @@ export const SidePanel: React.FC = () => {
     return (
       <main className="side-panel">
         <div className="api-key-missing">
-          <h2>API Key Required</h2>
+          <h2>API Key Required change</h2>
           <p>Please add your OpenAI API key to use the chat feature.</p>
           <button onClick={handleOpenOptions} className="options-button">
             Add API Key

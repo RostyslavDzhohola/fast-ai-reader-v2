@@ -46,24 +46,53 @@ async function initializeGoogleAuth() {
 }
 
 // Function to handle tab updates and activations
-function handleTabUpdate(tabId: number, url: string | undefined) {
-  if (url) {
-    setSidePanelForDiscord(tabId, url)
+async function handleTabUpdate(tabId: number, url: string | undefined) {
+  if (!url) return
+
+  try {
+    const { googleToken } = await chrome.storage.local.get('googleToken')
+
+    // Immediately disable side panel for non-Discord URLs
+    if (!isDiscordUrl(url)) {
+      await chrome.sidePanel.setOptions({
+        tabId,
+        enabled: false,
+      })
+      return
+    }
+
+    // For Discord URLs, check authentication
+    if (isDiscordUrl(url) && googleToken) {
+      await chrome.sidePanel.setOptions({
+        tabId,
+        path: 'sidepanel.html',
+        enabled: true,
+      })
+    } else {
+      await chrome.sidePanel.setOptions({
+        tabId,
+        enabled: false,
+      })
+    }
+  } catch (error) {
+    console.error('Error in handleTabUpdate:', error)
   }
 }
 
 // Event listeners for tabs
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
-    handleTabUpdate(tabId, tab.url)
-  }
+  handleTabUpdate(tabId, tab.url)
 })
 
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  chrome.tabs.get(activeInfo.tabId, (tab) => {
-    if (tab.url) {
-      handleTabUpdate(tab.id!, tab.url)
-    }
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  const tab = await chrome.tabs.get(activeInfo.tabId)
+  handleTabUpdate(tab.id!, tab.url)
+})
+
+// Force check all tabs when extension loads
+chrome.tabs.query({}, (tabs) => {
+  tabs.forEach((tab) => {
+    if (tab.id) handleTabUpdate(tab.id, tab.url)
   })
 })
 
@@ -142,6 +171,27 @@ function handleError(error: Error) {
 }
 
 // Initialize side panel behavior
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch((error) => handleError(error as Error))
+// chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+
+// Add this after your existing event listeners
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!tab.id || !tab.url) return
+
+  try {
+    const { googleToken } = await chrome.storage.local.get('googleToken')
+
+    if (isDiscordUrl(tab.url)) {
+      if (googleToken) {
+        // Toggle side panel only on Discord pages for authenticated users
+        const sidePanel = await chrome.sidePanel.getOptions({ tabId: tab.id })
+        await chrome.sidePanel.setOptions({
+          tabId: tab.id,
+          enabled: !sidePanel.enabled,
+          path: 'sidepanel.html',
+        })
+      }
+    }
+  } catch (error) {
+    console.error('Error handling action click:', error)
+  }
+})

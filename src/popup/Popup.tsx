@@ -4,15 +4,23 @@ import './Popup.css'
 export const Popup: React.FC = () => {
   const [isDiscordPage, setIsDiscordPage] = useState(false)
   const [isSignedIn, setIsSignedIn] = useState(false)
+  const [hasDiscordTab, setHasDiscordTab] = useState(false)
+  const [activeDiscordTabId, setActiveDiscordTabId] = useState<number | null>(null)
 
   useEffect(() => {
-    // Check both Discord page status and Google auth status
     const checkStatus = async () => {
       // Check current tab
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const url = tabs[0].url || ''
-        setIsDiscordPage(url.includes('discord.com'))
-      })
+      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      const isCurrentTabDiscord = currentTab.url?.includes('discord.com') || false
+      setIsDiscordPage(isCurrentTabDiscord)
+
+      // Check for any Discord tabs
+      const allTabs = await chrome.tabs.query({ currentWindow: true })
+      const discordTab = allTabs.find((tab) => tab.url?.includes('discord.com'))
+      setHasDiscordTab(!!discordTab)
+      if (discordTab?.id) {
+        setActiveDiscordTabId(discordTab.id)
+      }
 
       // Check Google auth status
       const result = await chrome.storage.local.get('googleToken')
@@ -22,40 +30,72 @@ export const Popup: React.FC = () => {
     checkStatus()
   }, [])
 
-  const handleDiscordClick = () => {
-    chrome.tabs.create({ url: 'https://discord.com/channels/@me' })
+  const handleSignIn = async () => {
+    try {
+      const success = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
+      if (success) {
+        setIsSignedIn(true)
+        if (isDiscordPage) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+          if (tab.id) {
+            await chrome.sidePanel.setOptions({
+              tabId: tab.id,
+              path: 'sidepanel.html',
+              enabled: true,
+            })
+            window.close()
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Authentication failed:', error)
+    }
   }
 
-  const handleSignIn = () => {
-    chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' }, (response) => {
-      if (response?.success) {
-        setIsSignedIn(true)
-      }
-    })
+  const handleDiscordNavigation = async () => {
+    if (hasDiscordTab && activeDiscordTabId) {
+      // Switch to existing Discord tab
+      await chrome.tabs.update(activeDiscordTabId, { active: true })
+    } else {
+      // Open new Discord tab
+      await chrome.tabs.create({ url: 'https://discord.com/channels/@me' })
+    }
+    window.close()
   }
 
   if (!isSignedIn) {
     return (
-      <main>
-        <h3>Fast AI Reader</h3>
-        <p>Please sign in with Google to use this extension.</p>
-        <button onClick={handleSignIn}>Sign in with Google</button>
-      </main>
+      <div className="popup-container">
+        <div className="auth-container">
+          <h2>Sign in Required</h2>
+          <p>Please sign in with Google to use this extension.</p>
+          <button onClick={handleSignIn} className="sign-in-button">
+            Sign in with Google
+          </button>
+        </div>
+      </div>
     )
   }
 
   return (
-    <main>
-      <h3>Fast AI Reader</h3>
-      {isDiscordPage ? (
-        <p>You are on a Discord page. The side panel should be available.</p>
-      ) : (
-        <div>
-          <p>This extension is designed to work with Discord.</p>
-          <button onClick={handleDiscordClick}>Go to Discord</button>
-        </div>
-      )}
-    </main>
+    <div className="popup-container">
+      <div className="success-container">
+        {isDiscordPage ? (
+          <>
+            <h2>Discord Page Detected</h2>
+            <p>You can now use the side panel on this page.</p>
+          </>
+        ) : (
+          <>
+            <h2>Not on Discord</h2>
+            <p>{hasDiscordTab ? 'Switch to Discord tab' : 'Open Discord'} to use the extension.</p>
+            <button onClick={handleDiscordNavigation} className="discord-button">
+              {hasDiscordTab ? 'Switch to Discord Tab' : 'Go to Discord'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
