@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './Options.css'
 
 interface GoogleUserInfo {
@@ -7,7 +7,7 @@ interface GoogleUserInfo {
   name: string
 }
 
-export const Options = () => {
+export const Options: React.FC = () => {
   const [apiKey, setApiKey] = useState('')
   const [isKeySet, setIsKeySet] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
@@ -96,16 +96,42 @@ export const Options = () => {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(apiKey).then(() => {
       setCopySuccess(true)
-      setTimeout(() => {
-        setCopySuccess(false)
-      }, 1000) // Hide after 1 second
+      setTimeout(() => setCopySuccess(false), 1000)
     })
+  }
+
+  const handleSignIn = async () => {
+    try {
+      const success = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
+      if (success) {
+        setIsGoogleSignedIn(true)
+        // Refresh user info after sign in
+        const tokenResult = await chrome.storage.local.get('googleToken')
+        if (tokenResult.googleToken) {
+          const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+              Authorization: `Bearer ${tokenResult.googleToken}`,
+            },
+          })
+          if (response.ok) {
+            const data = await response.json()
+            setUserInfo({
+              email: data.email,
+              picture: data.picture,
+              name: data.name,
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Authentication failed:', error)
+    }
   }
 
   return (
     <div className="options-layout">
-      {isGoogleSignedIn && userInfo && (
-        <aside className="user-profile-sidebar">
+      <aside className="user-profile-sidebar">
+        {isGoogleSignedIn && userInfo ? (
           <div className="user-profile">
             <img src={userInfo.picture} alt="Profile" className="profile-image" />
             <div className="user-info">
@@ -116,8 +142,16 @@ export const Options = () => {
               Sign Out
             </button>
           </div>
-        </aside>
-      )}
+        ) : (
+          <div className="user-profile">
+            <h3>Not Signed In</h3>
+            <p>Sign in to use the extension</p>
+            <button onClick={handleSignIn} className="sign-in-button">
+              Sign in with Google
+            </button>
+          </div>
+        )}
+      </aside>
 
       <main className="options-container">
         <section className="api-key-section">

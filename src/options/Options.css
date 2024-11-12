@@ -286,7 +286,12 @@ iframe {
 }
 
 .api-key-section {
-  margin-top: 2rem;
+  margin-top: 0;
+}
+
+.api-key-section h3 {
+  margin-top: 0;
+  margin-bottom: 2rem;
 }
 
 .options-layout {
@@ -373,4 +378,21 @@ iframe {
     border-right: none;
     border-bottom: 1px solid #3a3f4b;
   }
+}
+
+.sign-in-button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 15px;
+  width: 100%;
+  max-width: 200px;
+}
+
+.sign-in-button:hover {
+  background-color: #357abd;
 }
