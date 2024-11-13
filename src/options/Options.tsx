@@ -15,6 +15,7 @@ export const Options: React.FC = () => {
   const [isGoogleSignedIn, setIsGoogleSignedIn] = useState(false)
   const [userInfo, setUserInfo] = useState<GoogleUserInfo | null>(null)
   const highlightedKeyRef = useRef<HTMLSpanElement>(null)
+  const [isSigningIn, setIsSigningIn] = useState(false)
 
   // Main initialization effect that sets up auth listener and loads initial data
   useEffect(() => {
@@ -143,6 +144,7 @@ export const Options: React.FC = () => {
   // Handles user sign-in process
   const handleSignIn = async () => {
     try {
+      setIsSigningIn(true)
       console.log('User clicked sign in with Google button')
       const response = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
 
@@ -158,6 +160,8 @@ export const Options: React.FC = () => {
       setIsGoogleSignedIn(false)
       setUserInfo(null)
       alert('Failed to sign in with Google. Please try again.')
+    } finally {
+      setIsSigningIn(false)
     }
   }
 
@@ -179,8 +183,15 @@ export const Options: React.FC = () => {
           <div className="user-profile">
             <h3>Not Signed In</h3>
             <p>Sign in to use the extension</p>
-            <button onClick={handleSignIn} className="sign-in-button">
-              Sign in with Google
+            <button onClick={handleSignIn} className="sign-in-button" disabled={isSigningIn}>
+              {isSigningIn ? (
+                <span className="loading-container">
+                  <span className="loading-spinner"></span>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign in with Google'
+              )}
             </button>
           </div>
         )}

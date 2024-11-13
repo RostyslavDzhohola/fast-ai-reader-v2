@@ -6,6 +6,7 @@ export const Popup: React.FC = () => {
   const [isSignedIn, setIsSignedIn] = useState(false)
   const [hasDiscordTab, setHasDiscordTab] = useState(false)
   const [activeDiscordTabId, setActiveDiscordTabId] = useState<number | null>(null)
+  const [isSigningIn, setIsSigningIn] = useState(false)
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -32,23 +33,31 @@ export const Popup: React.FC = () => {
 
   const handleSignIn = async () => {
     try {
-      const success = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
-      if (success) {
-        setIsSignedIn(true)
-        if (isDiscordPage) {
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-          if (tab.id) {
-            await chrome.sidePanel.setOptions({
-              tabId: tab.id,
-              path: 'sidepanel.html',
-              enabled: true,
-            })
-            window.close()
-          }
+      setIsSigningIn(true)
+      console.log('User clicked sign in with Google button')
+      const response = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
+
+      if (!response.success) {
+        throw new Error(response.error || 'Authentication failed')
+      }
+
+      setIsSignedIn(true)
+      if (isDiscordPage) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (tab.id) {
+          await chrome.sidePanel.setOptions({
+            tabId: tab.id,
+            path: 'sidepanel.html',
+            enabled: true,
+          })
+          window.close()
         }
       }
     } catch (error) {
       console.error('Authentication failed:', error)
+      alert('Failed to sign in with Google. Please try again.')
+    } finally {
+      setIsSigningIn(false)
     }
   }
 
@@ -67,10 +76,16 @@ export const Popup: React.FC = () => {
     return (
       <div className="popup-container">
         <div className="auth-container">
-          <h2>Sign in Required</h2>
           <p>Please sign in with Google to use this extension.</p>
-          <button onClick={handleSignIn} className="sign-in-button">
-            Sign in with Google
+          <button onClick={handleSignIn} className="sign-in-button" disabled={isSigningIn}>
+            {isSigningIn ? (
+              <span className="loading-container">
+                <span className="loading-spinner"></span>
+                Signing in...
+              </span>
+            ) : (
+              'Sign in with Google'
+            )}
           </button>
         </div>
       </div>
