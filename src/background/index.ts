@@ -36,12 +36,80 @@ async function checkAuthAndInitialize() {
 
 async function initializeGoogleAuth() {
   try {
-    const auth = await chrome.identity.getAuthToken({ interactive: true })
-    await chrome.storage.local.set({ googleToken: auth.token })
-    return true
+    // Clear existing tokens
+    await chrome.storage.local.remove(['googleToken', 'tokenTimestamp'])
+
+    const { token } = await chrome.identity.getAuthToken({
+      interactive: true,
+      scopes: [
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email',
+      ],
+    })
+
+    if (!token) {
+      throw new Error('Failed to obtain auth token')
+    }
+
+    // Store token with timestamp
+    const timestamp = Date.now()
+    await chrome.storage.local.set({
+      googleToken: token,
+      tokenTimestamp: timestamp,
+      lastRefresh: timestamp,
+    })
+
+    // Validate token immediately
+    try {
+      const userInfo = await validateToken(token)
+      return { success: true, token, userInfo }
+    } catch (error) {
+      // If validation fails, clear tokens and retry once
+      await chrome.storage.local.remove(['googleToken', 'tokenTimestamp'])
+      throw new Error('Token validation failed: ' + error.message)
+    }
   } catch (error) {
     console.error('Authentication failed:', error)
-    throw error
+    return { success: false, error: error.message }
+  }
+}
+
+async function validateToken(token: string) {
+  const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!response.ok) {
+    throw new Error('Token validation failed')
+  }
+
+  return response.json()
+}
+
+// Token refresh logic
+async function refreshTokenIfNeeded() {
+  try {
+    const { googleToken, lastRefresh } = await chrome.storage.local.get([
+      'googleToken',
+      'lastRefresh',
+    ])
+
+    if (!googleToken) return null
+
+    // Refresh if token is older than 45 minutes
+    if (Date.now() - lastRefresh > 45 * 60 * 1000) {
+      const result = await initializeGoogleAuth()
+      if (!result.success) {
+        throw new Error('Token refresh failed')
+      }
+      return result.token
+    }
+
+    return googleToken
+  } catch (error) {
+    console.error('Token refresh failed:', error)
+    await chrome.storage.local.remove(['googleToken', 'tokenTimestamp', 'lastRefresh'])
+    return null
   }
 }
 
@@ -96,7 +164,7 @@ chrome.tabs.query({}, (tabs) => {
   })
 })
 
-// Keep track of tabs where content script is ready
+// Track tabs where content script is ready
 const contentScriptReadyTabs = new Set<number>()
 
 // Listen for content script ready messages
@@ -105,6 +173,24 @@ chrome.runtime.onMessage.addListener((request, sender) => {
     contentScriptReadyTabs.add(sender.tab.id)
   }
 })
+
+// Improved message sending with retry logic
+async function sendMessageToTab(tabId: number, message: any, maxRetries = 3): Promise<any> {
+  try {
+    // Check if content script is ready
+    if (!contentScriptReadyTabs.has(tabId)) {
+      throw new Error('Content script not ready')
+    }
+
+    return await chrome.tabs.sendMessage(tabId, message)
+  } catch (error) {
+    if (maxRetries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      return sendMessageToTab(tabId, message, maxRetries - 1)
+    }
+    throw error
+  }
+}
 
 // Update the extractDiscordMessages function
 async function extractDiscordMessages(count: number): Promise<string[]> {
@@ -150,6 +236,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // Message listener for extraction requests
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Received message:', request)
   if (request.action === 'extractMessages') {
     extractDiscordMessages(request.count)
       .then((messages) => sendResponse({ messages }))
@@ -160,6 +247,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Add new handler for Google auth
   if (request.action === 'initiateGoogleAuth') {
     initializeGoogleAuth()
+      .then(() => sendResponse({ success: true }))
+      .catch((error) => sendResponse({ success: false, error: error.message }))
+    return true
+  }
+
+  // Add new handler for sign out
+  if (request.action === 'signOut') {
+    handleSignOut()
       .then(() => sendResponse({ success: true }))
       .catch((error) => sendResponse({ success: false, error: error.message }))
     return true
@@ -195,3 +290,52 @@ chrome.action.onClicked.addListener(async (tab) => {
     console.error('Error handling action click:', error)
   }
 })
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.googleToken) {
+    // Broadcast auth state change to all extension components
+    chrome.runtime.sendMessage({
+      action: 'authStateChanged',
+      isAuthenticated: !!changes.googleToken.newValue,
+    })
+  }
+})
+
+// Check token validity every 15 minutes
+setInterval(
+  async () => {
+    await refreshTokenIfNeeded()
+  },
+  15 * 60 * 1000,
+)
+
+// Add this new function to handle sign out
+async function handleSignOut() {
+  try {
+    // Get the current token
+    const { googleToken } = await chrome.storage.local.get('googleToken')
+
+    if (googleToken) {
+      // Revoke the token with Google
+      await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${googleToken}`)
+
+      // Remove token from chrome.identity
+      await chrome.identity.removeCachedAuthToken({ token: googleToken })
+    }
+
+    // Clear all stored tokens and timestamps
+    await chrome.storage.local.remove(['googleToken', 'tokenTimestamp', 'lastRefresh'])
+
+    // Broadcast auth state change
+    chrome.runtime.sendMessage({
+      action: 'authStateChanged',
+      isAuthenticated: false,
+    })
+
+    console.log('Sign out successful')
+    return { success: true }
+  } catch (error) {
+    console.error('Sign out failed:', error)
+    throw error
+  }
+}

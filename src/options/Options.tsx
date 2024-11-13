@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './Options.css'
 
+// Interface defining the structure of Google user information
 interface GoogleUserInfo {
   email: string
   picture: string
@@ -15,48 +16,87 @@ export const Options: React.FC = () => {
   const [userInfo, setUserInfo] = useState<GoogleUserInfo | null>(null)
   const highlightedKeyRef = useRef<HTMLSpanElement>(null)
 
+  // Main initialization effect that sets up auth listener and loads initial data
   useEffect(() => {
-    const initializeData = async () => {
-      // Load the API key
+    // Listener for authentication state changes from background script
+    const authStateListener = (message: any) => {
+      if (message.action === 'authStateChanged') {
+        console.log('Auth state changed:', message.isAuthenticated)
+        if (message.isAuthenticated) {
+          fetchUserInfo()
+        } else {
+          setIsGoogleSignedIn(false)
+          setUserInfo(null)
+        }
+      }
+    }
+
+    // Initialize data and set up listeners
+    const initialize = async () => {
+      // Load the API key from chrome storage
       const apiKeyResult = await chrome.storage.sync.get(['openaiApiKey'])
       if (apiKeyResult.openaiApiKey) {
         setApiKey(apiKeyResult.openaiApiKey)
         setIsKeySet(true)
       }
 
-      // Check Google auth status and fetch user info
-      const tokenResult = await chrome.storage.local.get('googleToken')
-      const isSignedIn = !!tokenResult.googleToken
-      setIsGoogleSignedIn(isSignedIn)
-
-      if (isSignedIn && tokenResult.googleToken) {
-        try {
-          const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-            headers: {
-              Authorization: `Bearer ${tokenResult.googleToken}`,
-            },
-          })
-          if (response.ok) {
-            const data = await response.json()
-            setUserInfo({
-              email: data.email,
-              picture: data.picture,
-              name: data.name,
-            })
-          }
-        } catch (error) {
-          console.error('Error fetching user info:', error)
-        }
-      }
+      // Perform initial authentication check
+      await fetchUserInfo()
     }
 
-    initializeData()
+    // Set up listener and initialize component
+    chrome.runtime.onMessage.addListener(authStateListener)
+    initialize()
+
+    // Cleanup listener on component unmount
+    return () => {
+      chrome.runtime.onMessage.removeListener(authStateListener)
+    }
   }, [])
 
+  // Fetches user information from Google's API using stored token
+  const fetchUserInfo = async () => {
+    try {
+      const tokenResult = await chrome.storage.local.get('googleToken')
+      if (!tokenResult.googleToken) {
+        setIsGoogleSignedIn(false)
+        return
+      }
+
+      const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${tokenResult.googleToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        // Clean up invalid token
+        await chrome.storage.local.remove(['googleToken', 'tokenTimestamp'])
+        setIsGoogleSignedIn(false)
+        return
+      }
+
+      const data = await response.json()
+      setIsGoogleSignedIn(true)
+      setUserInfo({
+        email: data.email,
+        picture: data.picture,
+        name: data.name,
+      })
+    } catch (error) {
+      console.error('Error fetching user info:', error)
+      setIsGoogleSignedIn(false)
+      setUserInfo(null)
+      await chrome.storage.local.remove(['googleToken', 'tokenTimestamp'])
+    }
+  }
+
+  // Handles changes to the API key input field
   const handleApiKeyChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setApiKey(event.target.value)
   }
 
+  // Saves the API key to chrome storage
   const saveApiKey = () => {
     chrome.storage.sync.set({ openaiApiKey: apiKey }, () => {
       setIsKeySet(true)
@@ -64,6 +104,7 @@ export const Options: React.FC = () => {
     })
   }
 
+  // Removes the API key from chrome storage
   const deleteApiKey = () => {
     chrome.storage.sync.remove('openaiApiKey', () => {
       setApiKey('')
@@ -72,27 +113,26 @@ export const Options: React.FC = () => {
     })
   }
 
-  const handleGoogleSignOut = async () => {
+  // Handles user sign-out process
+  const handleSignOut = async () => {
     try {
-      const { googleToken } = await chrome.storage.local.get('googleToken')
-      if (googleToken) {
-        await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${googleToken}`)
-      }
-      await chrome.storage.local.remove('googleToken')
+      console.log('User clicked sign out button')
+      await chrome.runtime.sendMessage({ action: 'signOut' })
       setIsGoogleSignedIn(false)
       setUserInfo(null)
-      alert('Successfully signed out from Google')
+      console.log('User signed out successfully')
     } catch (error) {
-      console.error('Error signing out:', error)
-      alert('Error signing out from Google')
+      console.error('Sign out failed:', error)
     }
   }
 
+  // Masks the API key for display purposes
   const maskApiKey = (key: string) => {
     if (key.length <= 8) return '****...****'
     return `${key.slice(0, 4)}...${key.slice(-4)}`
   }
 
+  // Copies the API key to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(apiKey).then(() => {
       setCopySuccess(true)
@@ -100,31 +140,24 @@ export const Options: React.FC = () => {
     })
   }
 
+  // Handles user sign-in process
   const handleSignIn = async () => {
     try {
-      const success = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
-      if (success) {
-        setIsGoogleSignedIn(true)
-        // Refresh user info after sign in
-        const tokenResult = await chrome.storage.local.get('googleToken')
-        if (tokenResult.googleToken) {
-          const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-            headers: {
-              Authorization: `Bearer ${tokenResult.googleToken}`,
-            },
-          })
-          if (response.ok) {
-            const data = await response.json()
-            setUserInfo({
-              email: data.email,
-              picture: data.picture,
-              name: data.name,
-            })
-          }
-        }
+      console.log('User clicked sign in with Google button')
+      const response = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
+
+      if (!response.success) {
+        throw new Error(response.error || 'Authentication failed')
       }
+
+      setIsGoogleSignedIn(true)
+      setUserInfo(response.userInfo)
+      console.log('User signed in successfully:', response.userInfo)
     } catch (error) {
-      console.error('Authentication failed:', error)
+      console.error('Sign in failed:', error)
+      setIsGoogleSignedIn(false)
+      setUserInfo(null)
+      alert('Failed to sign in with Google. Please try again.')
     }
   }
 
@@ -138,7 +171,7 @@ export const Options: React.FC = () => {
               <h3>{userInfo.name}</h3>
               <p>{userInfo.email}</p>
             </div>
-            <button onClick={handleGoogleSignOut} className="sign-out-button">
+            <button onClick={handleSignOut} className="sign-out-button">
               Sign Out
             </button>
           </div>
@@ -200,7 +233,6 @@ export const Options: React.FC = () => {
               <button onClick={saveApiKey}>Save API Key</button>
               <iframe
                 src="https://www.loom.com/embed/ab4e201e69664ceaa1e8139cde51f774?sid=cedc3274-2c56-4437-a761-3878af97d3be"
-                frameBorder="0"
                 allowFullScreen
               ></iframe>
               <p className="api-key-link">
