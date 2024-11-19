@@ -7,6 +7,7 @@ export const Popup: React.FC = () => {
   const [hasDiscordTab, setHasDiscordTab] = useState(false)
   const [activeDiscordTabId, setActiveDiscordTabId] = useState<number | null>(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
+  const [registrationRequired, setRegistrationRequired] = useState(false)
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -31,13 +32,37 @@ export const Popup: React.FC = () => {
     checkStatus()
   }, [])
 
+  useEffect(() => {
+    // If user is signed in and on Discord, show side panel and close popup
+    if (isSignedIn && isDiscordPage) {
+      chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
+        if (tab?.id) {
+          await chrome.sidePanel.setOptions({
+            tabId: tab.id,
+            enabled: true,
+            path: 'sidepanel.html',
+          })
+          window.close()
+        }
+      })
+    }
+  }, [isSignedIn, isDiscordPage])
+
   const handleSignIn = async () => {
     try {
       setIsSigningIn(true)
       console.log('User clicked sign in with Google button')
       const response = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
 
+      console.log('Auth response:', response)
+
       if (!response.success) {
+        if (response.error === 'REGISTRATION_REQUIRED') {
+          console.log('Registration required, showing registration prompt')
+          setRegistrationRequired(true)
+          setIsSigningIn(false)
+          return
+        }
         throw new Error(response.error || 'Authentication failed')
       }
 
@@ -55,7 +80,7 @@ export const Popup: React.FC = () => {
       }
     } catch (error) {
       console.error('Authentication failed:', error)
-      alert('Failed to sign in with Google. Please try again.')
+      setRegistrationRequired(false)
     } finally {
       setIsSigningIn(false)
     }
@@ -72,7 +97,37 @@ export const Popup: React.FC = () => {
     window.close()
   }
 
+  const handleRegistration = () => {
+    chrome.tabs.create({ url: 'https://discord-ai-orcin.vercel.app/' })
+    window.close()
+  }
+
   if (!isSignedIn) {
+    if (registrationRequired) {
+      return (
+        <div className="popup-container">
+          <div className="auth-container">
+            <h2>Registration Required</h2>
+            <p>Please register on our website first to use this extension.</p>
+            <button
+              onClick={() =>
+                chrome.tabs.create({
+                  url: 'https://discord-ai-orcin.vercel.app/',
+                  active: true,
+                })
+              }
+              className="registration-button"
+            >
+              Register Now
+            </button>
+            <button onClick={() => setRegistrationRequired(false)} className="back-button">
+              Back
+            </button>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="popup-container">
         <div className="auth-container">
@@ -95,20 +150,11 @@ export const Popup: React.FC = () => {
   return (
     <div className="popup-container">
       <div className="success-container">
-        {isDiscordPage ? (
-          <>
-            <h2>Discord Page Detected</h2>
-            <p>You can now use the side panel on this page.</p>
-          </>
-        ) : (
-          <>
-            <h2>Not on Discord</h2>
-            <p>{hasDiscordTab ? 'Switch to Discord tab' : 'Open Discord'} to use the extension.</p>
-            <button onClick={handleDiscordNavigation} className="discord-button">
-              {hasDiscordTab ? 'Switch to Discord Tab' : 'Go to Discord'}
-            </button>
-          </>
-        )}
+        <h2>Not on Discord</h2>
+        <p>{hasDiscordTab ? 'Switch to Discord tab' : 'Open Discord'} to use the extension.</p>
+        <button onClick={handleDiscordNavigation} className="discord-button">
+          {hasDiscordTab ? 'Switch to Discord Tab' : 'Go to Discord'}
+        </button>
       </div>
     </div>
   )

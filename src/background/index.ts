@@ -58,29 +58,44 @@ chrome.action.onClicked.addListener(async (tab) => {
 
   try {
     const isAuthenticated = await checkAuthStatus()
+    const isOnDiscord = isDiscordUrl(tab.url)
 
-    if (isDiscordUrl(tab.url)) {
-      if (isAuthenticated) {
-        const sidePanel = await chrome.sidePanel.getOptions({ tabId: tab.id })
-        await chrome.sidePanel.setOptions({
-          tabId: tab.id,
-          enabled: !sidePanel.enabled,
-          path: 'sidepanel.html',
-        })
-      }
+    if (isAuthenticated && isOnDiscord) {
+      // Toggle side panel only if authenticated and on Discord
+      const sidePanel = await chrome.sidePanel.getOptions({ tabId: tab.id })
+      await chrome.sidePanel.setOptions({
+        tabId: tab.id,
+        enabled: !sidePanel.enabled,
+        path: 'sidepanel.html',
+      })
+    } else {
+      // Show popup in all other cases
+      await chrome.action.openPopup()
     }
   } catch (error) {
     console.error('Error handling action click:', error)
+    // Show popup on error
+    await chrome.action.openPopup()
   }
 })
 
 // Listen for auth state changes
-chrome.storage.onChanged.addListener((changes, namespace) => {
+chrome.storage.onChanged.addListener(async (changes, namespace) => {
   if (namespace === 'local' && changes.googleToken) {
-    chrome.runtime.sendMessage({
-      action: 'authStateChanged',
-      isAuthenticated: !!changes.googleToken.newValue,
-    })
+    const isAuthenticated = !!changes.googleToken.newValue
+
+    if (isAuthenticated) {
+      // When user becomes authenticated, check if they're on Discord
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (tab?.id && tab.url && isDiscordUrl(tab.url)) {
+        // Enable side panel if on Discord
+        await chrome.sidePanel.setOptions({
+          tabId: tab.id,
+          enabled: true,
+          path: 'sidepanel.html',
+        })
+      }
+    }
   }
 })
 

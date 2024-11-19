@@ -6,13 +6,29 @@ interface AuthUser {
   hasAccess: boolean
 }
 
+// Update AuthResponse to include possible error response
 interface AuthResponse {
-  token: string
-  user: AuthUser
+  token?: string
+  user?: AuthUser
+  error?: string
+  success?: boolean
+  message?: string
+}
+
+// Add a type for the Google auth response
+interface GoogleAuthResponse {
+  success: boolean
+  userInfo?: {
+    email: string
+    name: string
+    picture: string
+  }
+  error?: string
+  message?: string
 }
 
 // Initialize Google authentication
-export async function initializeGoogleAuth() {
+export async function initializeGoogleAuth(): Promise<GoogleAuthResponse> {
   try {
     console.log('Starting Google authentication process...')
 
@@ -37,6 +53,20 @@ export async function initializeGoogleAuth() {
 
     // Authenticate with your backend using the access token
     const authResponse = await authenticateWithBackend(accessToken)
+
+    // Check if registration is required
+    if (authResponse.error === 'REGISTRATION_REQUIRED') {
+      return {
+        success: false,
+        error: 'REGISTRATION_REQUIRED',
+        message: 'Please register before using the extension',
+      }
+    }
+
+    if (!authResponse.token || !authResponse.user) {
+      throw new Error('Invalid response structure from backend')
+    }
+
     console.log('Backend authentication successful:', authResponse)
 
     // Store tokens and user data
@@ -103,7 +133,29 @@ async function authenticateWithBackend(accessToken: string): Promise<AuthRespons
         error: data.error,
         details: data.details,
       })
+
+      // Check specifically for user not found case
+      if (response.status === 404 && data.error === 'User not found') {
+        return {
+          success: false,
+          error: 'REGISTRATION_REQUIRED',
+          message: 'User not registered in the system',
+        }
+      }
+
       throw new Error(errorMessage)
+    }
+
+    // Decode JWT to get expiration
+    const tokenParts = data.token.split('.')
+    if (tokenParts.length === 3) {
+      const payload = JSON.parse(atob(tokenParts[1]))
+      const expirationDate = new Date(payload.exp * 1000)
+      console.log('JWT Token expires at:', expirationDate.toLocaleString())
+      console.log(
+        'Days until expiration:',
+        Math.floor((payload.exp * 1000 - Date.now()) / (1000 * 60 * 60 * 24)),
+      )
     }
 
     if (!data.token || !data.user || !data.user.id || !data.user.email) {
@@ -120,8 +172,8 @@ async function authenticateWithBackend(accessToken: string): Promise<AuthRespons
     })
 
     if (error instanceof Error) {
-      if (error.message.includes('404')) {
-        throw new Error('User not found. Please make sure you are registered.')
+      if (error.message.includes('404') || error.message.includes('USER_NOT_FOUND')) {
+        throw new Error('REGISTRATION_REQUIRED')
       } else if (error.message.includes('401')) {
         throw new Error('Invalid access token. Please try signing in again.')
       } else if (error.message.includes('400')) {

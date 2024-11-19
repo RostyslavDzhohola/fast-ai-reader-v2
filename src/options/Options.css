@@ -431,3 +431,46 @@ iframe {
   align-items: center;
   justify-content: center;
 }
+
+.error-message {
+  color: #dc3545;
+  font-size: 14px;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: rgba(220, 53, 69, 0.1);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.registration-button {
+  background-color: #5865f2;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 10px;
+  width: 100%;
+  max-width: 200px;
+}
+
+.registration-button:hover {
+  background-color: #4752c4;
+}
+
+.back-button {
+  background-color: #e0e0e0;
+  color: #333;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  width: 100%;
+  max-width: 200px;
+}
+
+.back-button:hover {
+  background-color: #d0d0d0;
+}

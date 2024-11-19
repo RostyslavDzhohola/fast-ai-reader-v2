@@ -16,6 +16,7 @@ export const Options: React.FC = () => {
   const [userInfo, setUserInfo] = useState<GoogleUserInfo | null>(null)
   const highlightedKeyRef = useRef<HTMLSpanElement>(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
+  const [registrationRequired, setRegistrationRequired] = useState(false)
 
   // Main initialization effect that sets up auth listener and loads initial data
   useEffect(() => {
@@ -149,10 +150,13 @@ export const Options: React.FC = () => {
       const response = await chrome.runtime.sendMessage({ action: 'initiateGoogleAuth' })
 
       if (!response.success) {
+        if (response.error === 'REGISTRATION_REQUIRED') {
+          setRegistrationRequired(true)
+          return
+        }
         throw new Error(response.error || 'Authentication failed')
       }
 
-      // Only set these states if authentication was successful
       if (response.userInfo) {
         setIsGoogleSignedIn(true)
         setUserInfo(response.userInfo)
@@ -165,13 +169,23 @@ export const Options: React.FC = () => {
       setIsGoogleSignedIn(false)
       setUserInfo(null)
 
-      // More specific error messages for users
+      // Only show error message for non-registration errors
       const errorMessage = error instanceof Error ? error.message : 'Failed to sign in with Google'
-      alert(
-        errorMessage === 'No user information received'
-          ? 'Unable to get user information. Please try again.'
-          : `Sign in failed: ${errorMessage}. Please try again.`,
-      )
+      if (!errorMessage.includes('REGISTRATION_REQUIRED')) {
+        const errorElement = document.createElement('div')
+        errorElement.className = 'error-message'
+        errorElement.textContent = 'Sign in failed. Please try again.'
+
+        const container = document.querySelector('.user-profile')
+        if (container) {
+          const existingError = container.querySelector('.error-message')
+          if (existingError) {
+            existingError.remove()
+          }
+          container.appendChild(errorElement)
+          setTimeout(() => errorElement.remove(), 3000)
+        }
+      }
     } finally {
       setIsSigningIn(false)
     }
@@ -193,18 +207,38 @@ export const Options: React.FC = () => {
           </div>
         ) : (
           <div className="user-profile">
-            <h3>Not Signed In</h3>
-            <p>Sign in to use the extension</p>
-            <button onClick={handleSignIn} className="sign-in-button" disabled={isSigningIn}>
-              {isSigningIn ? (
-                <span className="loading-container">
-                  <span className="loading-spinner"></span>
-                  Signing in...
-                </span>
-              ) : (
-                'Sign in with Google'
-              )}
-            </button>
+            {registrationRequired ? (
+              <>
+                <h3>Registration Required</h3>
+                <p>Please register on our website first to use this extension.</p>
+                <button
+                  onClick={() =>
+                    chrome.tabs.create({ url: 'https://discord-ai-orcin.vercel.app/' })
+                  }
+                  className="registration-button"
+                >
+                  Register Now
+                </button>
+                <button onClick={() => setRegistrationRequired(false)} className="back-button">
+                  Back
+                </button>
+              </>
+            ) : (
+              <>
+                <h3>Not Signed In</h3>
+                <p>Sign in to use the extension</p>
+                <button onClick={handleSignIn} className="sign-in-button" disabled={isSigningIn}>
+                  {isSigningIn ? (
+                    <span className="loading-container">
+                      <span className="loading-spinner"></span>
+                      Signing in...
+                    </span>
+                  ) : (
+                    'Sign in with Google'
+                  )}
+                </button>
+              </>
+            )}
           </div>
         )}
       </aside>
