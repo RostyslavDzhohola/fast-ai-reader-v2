@@ -152,14 +152,26 @@ export const Options: React.FC = () => {
         throw new Error(response.error || 'Authentication failed')
       }
 
-      setIsGoogleSignedIn(true)
-      setUserInfo(response.userInfo)
-      console.log('User signed in successfully:', response.userInfo)
+      // Only set these states if authentication was successful
+      if (response.userInfo) {
+        setIsGoogleSignedIn(true)
+        setUserInfo(response.userInfo)
+        console.log('User signed in successfully:', response.userInfo)
+      } else {
+        throw new Error('No user information received')
+      }
     } catch (error) {
       console.error('Sign in failed:', error)
       setIsGoogleSignedIn(false)
       setUserInfo(null)
-      alert('Failed to sign in with Google. Please try again.')
+
+      // More specific error messages for users
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign in with Google'
+      alert(
+        errorMessage === 'No user information received'
+          ? 'Unable to get user information. Please try again.'
+          : `Sign in failed: ${errorMessage}. Please try again.`,
+      )
     } finally {
       setIsSigningIn(false)
     }
