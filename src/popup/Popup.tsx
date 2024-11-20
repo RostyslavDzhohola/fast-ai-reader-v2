@@ -8,6 +8,7 @@ export const Popup: React.FC = () => {
   const [activeDiscordTabId, setActiveDiscordTabId] = useState<number | null>(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [registrationRequired, setRegistrationRequired] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -102,10 +103,19 @@ export const Popup: React.FC = () => {
     window.close()
   }
 
+  useEffect(() => {
+    // Minimal timeout to ensure smooth transition
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 50)
+
+    return () => clearTimeout(timer)
+  }, [])
+
   if (!isSignedIn) {
     if (registrationRequired) {
       return (
-        <div className="popup-container">
+        <div className={`popup-container ${isLoading ? 'loading' : ''}`}>
           <div className="auth-container">
             <h2>Registration Required</h2>
             <p>Please register on our website first to use this extension.</p>
@@ -129,7 +139,7 @@ export const Popup: React.FC = () => {
     }
 
     return (
-      <div className="popup-container">
+      <div className={`popup-container ${isLoading ? 'loading' : ''}`}>
         <div className="auth-container">
           <p>Please sign in with Google to use this extension.</p>
           <button onClick={handleSignIn} className="sign-in-button" disabled={isSigningIn}>
@@ -148,7 +158,7 @@ export const Popup: React.FC = () => {
   }
 
   return (
-    <div className="popup-container">
+    <div className={`popup-container ${isLoading ? 'loading' : ''}`}>
       <div className="success-container">
         <h2>Not on Discord</h2>
         <p>{hasDiscordTab ? 'Switch to Discord tab' : 'Open Discord'} to use the extension.</p>

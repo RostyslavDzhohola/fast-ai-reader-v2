@@ -84,4 +84,70 @@
    - Note: This approach allows for consistent handling of both side panel and popup visibility based on the current URL.
    - Remember to update the `manifest.ts` file to include necessary permissions and action settings.
 
+## Chrome Extension Side Panel API Limitations
+
+1. Side Panel Opening Methods
+
+   - ❌ INCORRECT: Using `chrome.sidePanel.open()`
+
+     ```typescript
+     // This doesn't work - method doesn't exist
+     await chrome.sidePanel.open({ windowId: window.id })
+     ```
+
+   - ✅ CORRECT: Using `setPanelBehavior` and `setOptions`
+
+     ```typescript
+     // First, set the behavior to open on action click
+     await chrome.sidePanel.setPanelBehavior({
+       openPanelOnActionClick: true,
+     })
+
+     // Then enable the side panel for the specific tab
+     await chrome.sidePanel.setOptions({
+       tabId: tab.id,
+       enabled: true,
+       path: 'sidepanel.html',
+     })
+     ```
+
+2. Best Practices for Side Panel Visibility
+
+   - Use `setPanelBehavior` to configure how the panel opens
+   - Use `setOptions` to enable/disable the panel for specific tabs
+   - Handle visibility through the extension's action click
+   - Remember that side panel visibility is controlled by Chrome, not directly by the extension
+
+3. Example Implementation:
+
+   ```typescript
+   // In background script
+   chrome.runtime.onInstalled.addListener(() => {
+     // Set default behavior
+     chrome.sidePanel
+       .setPanelBehavior({
+         openPanelOnActionClick: true,
+       })
+       .catch(console.error)
+   })
+
+   // Handle tab updates
+   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+     if (changeInfo.status === 'complete' && tab.url) {
+       const isDiscordUrl = tab.url.includes('discord.com')
+       const isAuthenticated = await checkAuthStatus()
+
+       await chrome.sidePanel.setOptions({
+         tabId,
+         enabled: isDiscordUrl && isAuthenticated,
+         path: 'sidepanel.html',
+       })
+     }
+   })
+   ```
+
+[Source: Chrome Extensions Documentation](https://developer.chrome.com/docs/extensions/reference/api/sidePanel)
+
+Remember: The side panel visibility is ultimately controlled by Chrome's UI, and we can only configure when it's available and how it behaves when the user interacts with the extension.
+
 Remember: Always test changes thoroughly in the context of a Chrome extension to ensure compatibility and proper functionality.

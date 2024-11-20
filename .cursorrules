@@ -1,1 +1,3 @@
 Do not delete comments unless you are editing relevant code.
+When I am making requests to a code do not make assumptions and add extra logic that I haven't requested.
+only add code that I am explicitly requesting never add more stuff beyond what has been requested.

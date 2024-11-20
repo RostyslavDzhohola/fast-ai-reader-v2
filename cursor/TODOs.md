@@ -1,22 +1,39 @@
 # TODOs
 
-## Security and API Key Management
+## ✅ Completed Tasks
 
-- ✅ Prevent secret from being committed during build:
+✅ Basic extension setup
+✅ Google authentication implementation
+✅ Options page creation
+✅ API key management
+✅ Discord message extraction
+✅ Side panel implementation
+✅ Registration flow
+✅ Basic error handling
+✅ Implement Google Sign-in functionality
+✅ Add registration flow for new users
+✅ Implement user-provided API key functionality
+✅ Create options page for API key management
+✅ Add secure storage for API keys using chrome.storage.sync
+✅ Implement message extraction from Discord
+✅ Add side panel functionality
+✅ Add loading indicators for authentication
+✅ Implement registration required prompts
 
-  - [ ] Investigate ways to exclude secrets from the build process
-  - [ ] Consider using environment variables or a secure secret management system
+## High Priority Tasks
 
-- [ ] Implement user-provided API key functionality:
+- [ ] Replace OpenAI API key functionality with backend API integration
+- [ ] Fix side panel toggle behavior when clicking extension icon on Discord page
 
-  - [ ] Create an options page for the Chrome extension
-  - [ ] Add a form for users to input their own OpenAI API key
-  - [ ] Implement secure storage for the user-provided API key (e.g., using chrome.storage.sync)
-  - [ ] Update the SidePanel component to use the user-provided API key instead of the hardcoded one
+## Authentication and User Management
 
-- [ ] Remove hardcoded API key from the codebase:
-  - [ ] Once user-provided API key functionality is implemented, remove any hardcoded API keys
-  - [ ] Update documentation to guide users on how to obtain and input their own API key
+- [ ] Add "Remember Me" functionality for authentication
+- [ ] Implement session management and token refresh
+- [ ] Add user profile management features
+- [ ] Implement Google account chooser on every sign-in:
+  - [ ] Research and implement proper OAuth2 parameters for account selection
+  - [ ] Add 'prompt=select_account' parameter to force account chooser
+  - [ ] Test account selection behavior across extension reinstalls
 
 ## General Improvements
 
@@ -47,7 +64,4 @@
   - [ ] Develop a comprehensive test suite to ensure reliability and ease future development
 
 Remember to prioritize these tasks based on their importance and impact on user experience and security. The API key management and security-related tasks should be addressed as soon as possible to protect your users and your own API key.
-
-## Completed Tasks
-
-- [x] Example completed task (remove this when you complete a real task)
+Don't add new tasks if I don't request them.

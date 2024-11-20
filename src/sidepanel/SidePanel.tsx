@@ -10,7 +10,11 @@ type ChatMessage = {
   isExtracted?: boolean // New property to indicate extracted messages
 }
 
+// Add near the top, after imports
+const logPrefix = '[SidePanel]'
+
 export const SidePanel: React.FC = () => {
+  console.log('Side panel component mounted')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [prompt, setPrompt] = useState<string>('')
   const [isStreaming, setIsStreaming] = useState<boolean>(false)
@@ -30,18 +34,22 @@ export const SidePanel: React.FC = () => {
 
   // Load chat history and API key when component mounts
   useEffect(() => {
+    console.log(`${logPrefix} Component mounting...`)
     loadChatHistory()
     loadApiKey()
 
-    // Add a listener for storage changes
     const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      console.log(`${logPrefix} Storage changed:`, changes)
       if (changes.openaiApiKey) {
+        console.log(`${logPrefix} API key changed, reloading...`)
         loadApiKey()
       }
     }
 
     const handleMessage = (message: any) => {
+      console.log(`${logPrefix} Received message:`, message)
       if (message.action === 'reloadSidePanel') {
+        console.log(`${logPrefix} Reloading side panel...`)
         loadApiKey()
       }
     }
@@ -49,8 +57,9 @@ export const SidePanel: React.FC = () => {
     chrome.storage.onChanged.addListener(handleStorageChange)
     chrome.runtime.onMessage.addListener(handleMessage)
 
-    // Cleanup function to remove the listener
+    console.log(`${logPrefix} Component mounted successfully`)
     return () => {
+      console.log(`${logPrefix} Component unmounting...`)
       chrome.storage.onChanged.removeListener(handleStorageChange)
       chrome.runtime.onMessage.removeListener(handleMessage)
     }
@@ -88,11 +97,14 @@ export const SidePanel: React.FC = () => {
   }
 
   const handleStreamText = async () => {
-    if (!prompt.trim()) return
+    console.log(`${logPrefix} Starting text stream...`)
+    if (!prompt.trim()) {
+      console.log(`${logPrefix} Empty prompt, aborting stream`)
+      return
+    }
 
-    // Check if API key is present
     if (!apiKey) {
-      console.error('API key is missing') // Add this log
+      console.warn(`${logPrefix} API key missing, cannot proceed with stream`)
       setChatHistory((prev) => [
         ...prev,
         {
@@ -103,8 +115,7 @@ export const SidePanel: React.FC = () => {
       return
     }
 
-    // console.log('API key is present, length:', apiKey.length) // Add this log
-
+    console.log(`${logPrefix} Streaming with prompt:`, prompt)
     const userMessage: ChatMessage = { role: 'user', content: prompt }
     const newHistory = [...chatHistory, userMessage]
     setChatHistory(newHistory)
@@ -112,8 +123,7 @@ export const SidePanel: React.FC = () => {
     setIsStreaming(true)
 
     try {
-      console.log('Attempting to call streamText') // Add this log
-      // console.log('API key:', apiKey) // Add this log
+      console.log(`${logPrefix} Initiating stream with OpenAI...`)
       const { textStream } = await streamText({
         model: openaiClient('gpt-4o-mini'),
         messages: [
@@ -145,8 +155,12 @@ export const SidePanel: React.FC = () => {
       setChatHistory(updatedHistory)
       chrome.storage.local.set({ chatHistory: updatedHistory })
     } catch (error) {
-      console.error('Error streaming text:', error)
-      console.error('Error details:', JSON.stringify(error, null, 2)) // Add this detailed error log
+      console.error(`${logPrefix} Stream error:`, error)
+      console.error(`${logPrefix} Detailed error:`, {
+        message: error.message,
+        stack: error.stack,
+        details: JSON.stringify(error, null, 2),
+      })
       setChatHistory((prev) => [
         ...prev,
         {
@@ -248,7 +262,12 @@ export const SidePanel: React.FC = () => {
 
   // New function to process received messages
   const processReceivedMessages = (messages: string[]) => {
-    console.log(`Processing ${messages.length} received messages`)
+    console.log(`${logPrefix} Processing ${messages.length} messages`)
+    console.log(`${logPrefix} First message preview:`, messages[0]?.substring(0, 100))
+    console.log(
+      `${logPrefix} Last message preview:`,
+      messages[messages.length - 1]?.substring(0, 100),
+    )
 
     // Combine messages into a single string
     const messagesText = messages.join('')
