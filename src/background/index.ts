@@ -1,5 +1,45 @@
 import { initializeGoogleAuth, handleSignOut, refreshTokenIfNeeded, checkAuthStatus } from './auth'
 
+// Add URL state tracking at the top
+let currentURL: string | undefined
+let isCurrentURLDiscord = false
+
+// Add URL state listener
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId)
+    currentURL = tab.url
+    isCurrentURLDiscord = currentURL ? isDiscordUrl(currentURL) : false
+
+    console.log('🌐 Active Tab Changed:', {
+      previousUrl: currentURL,
+      currentUrl: tab.url,
+      isDiscordPage: isCurrentURLDiscord,
+      tabId: activeInfo.tabId,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error tracking URL state:', error.message)
+    }
+  }
+})
+
+// Add URL change listener for the same tab
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) {
+    currentURL = changeInfo.url
+    isCurrentURLDiscord = isDiscordUrl(changeInfo.url)
+
+    console.log('🔄 URL Changed:', {
+      newUrl: changeInfo.url,
+      isDiscordPage: isCurrentURLDiscord,
+      tabId,
+      timestamp: new Date().toISOString(),
+    })
+  }
+})
+
 console.log('background is running')
 
 function isDiscordUrl(url: string): boolean {
@@ -9,12 +49,6 @@ function isDiscordUrl(url: string): boolean {
 function handleError(error: Error) {
   console.error('An error occurred:', error.message)
 }
-
-// Set up panel behavior when extension is installed or updated
-chrome.runtime.onInstalled.addListener(() => {
-  // Don't set openPanelOnActionClick here anymore
-  // It will be managed in the click handler
-})
 
 // Simplify getCurrentStates to only get side panel state
 async function getCurrentStates(tabId: number) {
@@ -83,7 +117,7 @@ async function logExtensionState(tab: chrome.tabs.Tab) {
   }
 }
 
-// Modify the extension icon click handler - only adding popup settings
+// Modify the extension icon click handler to use isCurrentURLDiscord
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id || !tab.url) return
 
@@ -91,18 +125,17 @@ chrome.action.onClicked.addListener(async (tab) => {
   await logExtensionState(tab)
 
   try {
-    const isDiscord = isDiscordUrl(tab.url)
     const isAuthenticated = await checkAuthStatus()
 
     console.log('🎯 Click Handler - URL Check:', {
       url: tab.url,
-      isDiscord,
+      isDiscord: isCurrentURLDiscord,
       isAuthenticated,
       timestamp: new Date().toISOString(),
     })
 
     // For non-Discord pages
-    if (!isDiscord) {
+    if (!isCurrentURLDiscord) {
       await Promise.all([
         chrome.sidePanel.setOptions({
           tabId: tab.id,
@@ -212,21 +245,20 @@ async function logSidePanelState(tabId: number) {
   }
 }
 
-// Modify tab update listener to be more strict
+// Modify tab update listener to use isCurrentURLDiscord
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
-    const isDiscord = isDiscordUrl(tab.url)
     const isAuthenticated = await checkAuthStatus()
 
     console.log('📄 Tab Updated:', {
       url: tab.url,
-      isDiscord,
+      isDiscord: isCurrentURLDiscord,
       isAuthenticated,
       timestamp: new Date().toISOString(),
     })
 
     // For non-Discord pages, disable side panel and its availability
-    if (!isDiscord) {
+    if (!isCurrentURLDiscord) {
       await Promise.all([
         chrome.sidePanel.setOptions({
           tabId,
