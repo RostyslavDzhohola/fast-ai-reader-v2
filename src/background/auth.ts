@@ -27,6 +27,61 @@ interface GoogleAuthResponse {
   message?: string
 }
 
+// Move these interfaces here
+interface AuthState {
+  isSignedIn: boolean
+  registrationRequired: boolean
+}
+
+// Add the functions we moved from index.ts
+export async function getAuthState(): Promise<AuthState> {
+  try {
+    const result = await chrome.storage.local.get('googleToken')
+    const isSignedIn = !!result.googleToken
+
+    return {
+      isSignedIn,
+      registrationRequired: false,
+    }
+  } catch (error) {
+    console.error('Auth state check failed:', error)
+    throw error
+  }
+}
+
+export async function handlePostSignIn(isDiscordPage: boolean): Promise<void> {
+  try {
+    if (isDiscordPage) {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (tab.id) {
+        await setupSidePanel(tab.id, true)
+      }
+    }
+  } catch (error) {
+    console.error('Post sign-in handling error:', error)
+    throw error
+  }
+}
+
+export async function setupSidePanel(tabId: number, enabled: boolean = true): Promise<void> {
+  try {
+    await chrome.sidePanel.setOptions({
+      tabId,
+      enabled,
+      path: enabled ? 'sidepanel.html' : '',
+    })
+
+    if (enabled) {
+      await chrome.sidePanel.setPanelBehavior({
+        openPanelOnActionClick: true,
+      })
+    }
+  } catch (error) {
+    console.error('Side panel setup error:', error)
+    throw error
+  }
+}
+
 // Initialize Google authentication
 export async function initializeGoogleAuth(): Promise<GoogleAuthResponse> {
   try {

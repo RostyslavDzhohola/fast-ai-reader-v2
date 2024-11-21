@@ -11,43 +11,53 @@ export const Popup: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const checkStatus = async () => {
-      // Check current tab
-      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      const isCurrentTabDiscord = currentTab.url?.includes('discord.com') || false
-      setIsDiscordPage(isCurrentTabDiscord)
+    const initializePopup = async () => {
+      console.log('🚀 Initializing Popup')
 
-      // Check for any Discord tabs
-      const allTabs = await chrome.tabs.query({ currentWindow: true })
-      const discordTab = allTabs.find((tab) => tab.url?.includes('discord.com'))
-      setHasDiscordTab(!!discordTab)
-      if (discordTab?.id) {
-        setActiveDiscordTabId(discordTab.id)
-      }
+      try {
+        // Get both tab and auth info from background script
+        const [tabInfoResponse, authStateResponse] = await Promise.all([
+          chrome.runtime.sendMessage({ action: 'getTabInfo' }),
+          chrome.runtime.sendMessage({ action: 'getAuthState' }),
+        ])
 
-      // Check Google auth status
-      const result = await chrome.storage.local.get('googleToken')
-      setIsSignedIn(!!result.googleToken)
-    }
-
-    checkStatus()
-  }, [])
-
-  useEffect(() => {
-    // If user is signed in and on Discord, show side panel and close popup
-    if (isSignedIn && isDiscordPage) {
-      chrome.tabs.query({ active: true, currentWindow: true }, async ([tab]) => {
-        if (tab?.id) {
-          await chrome.sidePanel.setOptions({
-            tabId: tab.id,
-            enabled: true,
-            path: 'sidepanel.html',
-          })
-          window.close()
+        if (!tabInfoResponse.success || !authStateResponse.success) {
+          throw new Error('Failed to initialize popup')
         }
-      })
+
+        const { isDiscordPage, hasDiscordTab, activeDiscordTabId } = tabInfoResponse.data
+        const { isSignedIn, registrationRequired } = authStateResponse.data
+
+        // Update all states at once
+        setIsDiscordPage(isDiscordPage)
+        setHasDiscordTab(hasDiscordTab)
+        setIsSignedIn(isSignedIn)
+        setRegistrationRequired(registrationRequired)
+        if (activeDiscordTabId) {
+          setActiveDiscordTabId(activeDiscordTabId)
+        }
+
+        // Handle side panel setup if conditions are met
+        if (isSignedIn && isDiscordPage) {
+          console.log('🎯 Setting up side panel')
+          const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+          if (currentTab.id) {
+            await chrome.runtime.sendMessage({
+              action: 'setupSidePanel',
+              tabId: currentTab.id,
+              enabled: true,
+            })
+            console.log('🎯 Side panel setup complete')
+            // window.close()
+          }
+        }
+      } catch (error) {
+        console.error('❌ Popup initialization error:', error)
+      }
     }
-  }, [isSignedIn, isDiscordPage])
+
+    initializePopup()
+  }, [])
 
   const handleSignIn = async () => {
     try {
@@ -68,17 +78,13 @@ export const Popup: React.FC = () => {
       }
 
       setIsSignedIn(true)
-      if (isDiscordPage) {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-        if (tab.id) {
-          await chrome.sidePanel.setOptions({
-            tabId: tab.id,
-            path: 'sidepanel.html',
-            enabled: true,
-          })
-          window.close()
-        }
-      }
+
+      // Handle post-signin actions in background
+      await chrome.runtime.sendMessage({
+        action: 'handlePostSignIn',
+        isDiscordPage,
+      })
+      window.close()
     } catch (error) {
       console.error('Authentication failed:', error)
       setRegistrationRequired(false)
@@ -88,19 +94,15 @@ export const Popup: React.FC = () => {
   }
 
   const handleDiscordNavigation = async () => {
-    if (hasDiscordTab && activeDiscordTabId) {
-      // Switch to existing Discord tab
-      await chrome.tabs.update(activeDiscordTabId, { active: true })
-    } else {
-      // Open new Discord tab
-      await chrome.tabs.create({ url: 'https://discord.com/channels/@me' })
+    try {
+      await chrome.runtime.sendMessage({
+        action: 'navigateToDiscord',
+        discordTabId: activeDiscordTabId,
+      })
+      window.close()
+    } catch (error) {
+      console.error('Navigation failed:', error)
     }
-    window.close()
-  }
-
-  const handleRegistration = () => {
-    chrome.tabs.create({ url: 'https://discord-ai-orcin.vercel.app/' })
-    window.close()
   }
 
   useEffect(() => {

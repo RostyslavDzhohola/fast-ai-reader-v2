@@ -14,6 +14,13 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       outDir: 'build',
       rollupOptions: {
+        input: {
+          popup: 'popup.html',
+          sidepanel: 'sidepanel.html',
+          options: 'options.html',
+          newtab: 'newtab.html',
+          devtools: 'devtools.html',
+        },
         output: {
           chunkFileNames: 'assets/chunk-[hash].js',
         },

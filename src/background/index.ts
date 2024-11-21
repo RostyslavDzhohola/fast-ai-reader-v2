@@ -1,55 +1,58 @@
 import { initializeGoogleAuth, handleSignOut, refreshTokenIfNeeded, checkAuthStatus } from './auth'
 
-// TODO: Fix an issue with double click for the extension to work. On first click it makes checks on lins 126, 148, and only on the second click the logic starts to work for popup and side panel.
-
 console.log('background is running')
 
 // Add URL state tracking at the top
-let currentURL: string | undefined
 let isCurrentURLDiscord = false
-const DISCORD_URLS = 'https://discord.com'
+let authStatus = false
+let isServiceWorkerReady = false
 
-// Helper function to get current tab URL
-async function getCurrentTabURL() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    return tab?.url
-  } catch (error) {
-    console.error('Error getting current tab:', error)
-    return undefined
-  }
-}
+// Add Service Worker activation handler
+chrome.runtime.onStartup.addListener(() => {
+  console.log('🚀 Service Worker starting up')
+  isServiceWorkerReady = true
+})
+
+// Ensure Service Worker is ready on install/update
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('🚀 Extension installed/updated')
+  isServiceWorkerReady = true
+})
 
 function handleError(error: Error) {
   console.error('An error occurred:', error.message)
 }
 
 // ACTIVE TAB CLICK HANDLER
-// Modify the extension icon click handler to use this pattern
 chrome.action.onClicked.addListener(async (tab) => {
+  if (!isServiceWorkerReady) {
+    console.log('⏳ Service Worker not ready, initializing...')
+    isServiceWorkerReady = true
+  }
+
+  authStatus = await checkAuthStatus()
   console.log('🎯 Click Handler - URL Check:', {
     url: tab.url,
     isDiscord: isCurrentURLDiscord,
     timestamp: new Date().toISOString(),
+    signedInStatus: authStatus,
+    serviceWorkerReady: isServiceWorkerReady,
   })
 
   if (!tab.id || !tab.url) return
 
   try {
-    const isAuthenticated = await checkAuthStatus()
-    console.log('🔍 Auth Status:', isAuthenticated)
-
-    // Allow opening side panel with action click for Discord
-    await chrome.sidePanel.setPanelBehavior({
-      openPanelOnActionClick: true,
-    })
+    console.log('🔍 Auth Status:', authStatus)
 
     // For Discord pages
-    if (isCurrentURLDiscord && isAuthenticated) {
+    if (isCurrentURLDiscord && authStatus) {
       console.log('🔍 Side Panel')
+      await chrome.sidePanel.setPanelBehavior({
+        openPanelOnActionClick: true,
+      })
       await chrome.sidePanel.setOptions({
         tabId: tab.id,
-        path: 'sidepanel.html',
+        path: '/sidepanel.html',
         enabled: true,
       })
       // Clear popup for authenticated Discord
@@ -60,11 +63,15 @@ chrome.action.onClicked.addListener(async (tab) => {
     } else {
       // For non-Discord pages or unauthenticated
       console.log('🔍 Sign in or Switch to Discord Popup')
-      // Add popup for non-Discord or unauthenticated
+
+      // Set popup and wait for it to be ready
       await chrome.action.setPopup({
         tabId: tab.id,
-        popup: 'popup.html',
+        popup: '/popup.html',
       })
+
+      // Force popup to show by clicking the action again
+      await chrome.action.openPopup()
 
       await chrome.sidePanel.setOptions({
         tabId: tab.id,
@@ -108,4 +115,156 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })
     return true
   }
+
+  if (request.action === 'getTabInfo') {
+    getTabInfo()
+      .then((tabInfo) => {
+        sendResponse({ success: true, data: tabInfo })
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message })
+      })
+    return true
+  }
+
+  if (request.action === 'setupSidePanel') {
+    const { tabId, enabled } = request
+    setupSidePanel(tabId, enabled)
+      .then(() => {
+        sendResponse({ success: true })
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message })
+      })
+    return true
+  }
+
+  if (request.action === 'getAuthState') {
+    getAuthState()
+      .then((authState) => {
+        sendResponse({ success: true, data: authState })
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message })
+      })
+    return true
+  }
+
+  if (request.action === 'navigateToDiscord') {
+    const { discordTabId } = request
+    navigateToDiscord(discordTabId)
+      .then(() => {
+        sendResponse({ success: true })
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message })
+      })
+    return true
+  }
+
+  if (request.action === 'handlePostSignIn') {
+    const { isDiscordPage } = request
+    handlePostSignIn(isDiscordPage)
+      .then(() => {
+        sendResponse({ success: true })
+      })
+      .catch((error) => {
+        sendResponse({ success: false, error: error.message })
+      })
+    return true
+  }
 })
+
+interface TabInfo {
+  isDiscordPage: boolean
+  hasDiscordTab: boolean
+  activeDiscordTabId: number | null
+}
+
+// Add this function to handle tab info
+async function getTabInfo(): Promise<TabInfo> {
+  const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  const allTabs = await chrome.tabs.query({ currentWindow: true })
+
+  const isCurrentTabDiscord = currentTab.url?.includes('discord.com') || false
+  const discordTab = allTabs.find((tab) => tab.url?.includes('discord.com'))
+
+  return {
+    isDiscordPage: isCurrentTabDiscord,
+    hasDiscordTab: !!discordTab,
+    activeDiscordTabId: discordTab?.id || null,
+  }
+}
+
+// Add this new function to manage side panel
+async function setupSidePanel(tabId: number, enabled: boolean = true): Promise<void> {
+  try {
+    await chrome.sidePanel.setOptions({
+      tabId,
+      enabled,
+      path: enabled ? 'sidepanel.html' : '',
+    })
+
+    if (enabled) {
+      await chrome.sidePanel.setPanelBehavior({
+        openPanelOnActionClick: true,
+      })
+    }
+  } catch (error) {
+    console.error('Side panel setup error:', error)
+    throw error
+  }
+}
+
+// Add these new interfaces and functions
+interface AuthState {
+  isSignedIn: boolean
+  registrationRequired: boolean
+}
+
+async function getAuthState(): Promise<AuthState> {
+  try {
+    const result = await chrome.storage.local.get('googleToken')
+    const isSignedIn = !!result.googleToken
+
+    // You can add additional checks here if needed
+    return {
+      isSignedIn,
+      registrationRequired: false,
+    }
+  } catch (error) {
+    console.error('Auth state check failed:', error)
+    throw error
+  }
+}
+
+// Add this new function for Discord navigation
+async function navigateToDiscord(discordTabId: number | null): Promise<void> {
+  try {
+    if (discordTabId) {
+      // Switch to existing Discord tab
+      await chrome.tabs.update(discordTabId, { active: true })
+    } else {
+      // Open new Discord tab
+      await chrome.tabs.create({ url: 'https://discord.com/channels/@me' })
+    }
+  } catch (error) {
+    console.error('Discord navigation error:', error)
+    throw error
+  }
+}
+
+// Add new function to handle post-signin actions
+async function handlePostSignIn(isDiscordPage: boolean): Promise<void> {
+  try {
+    if (isDiscordPage) {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (tab.id) {
+        await setupSidePanel(tab.id, true)
+      }
+    }
+  } catch (error) {
+    console.error('Post sign-in handling error:', error)
+    throw error
+  }
+}

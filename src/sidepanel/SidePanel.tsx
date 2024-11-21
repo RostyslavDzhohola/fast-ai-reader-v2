@@ -156,11 +156,13 @@ export const SidePanel: React.FC = () => {
       chrome.storage.local.set({ chatHistory: updatedHistory })
     } catch (error) {
       console.error(`${logPrefix} Stream error:`, error)
-      console.error(`${logPrefix} Detailed error:`, {
-        message: error.message,
-        stack: error.stack,
+      const errorDetails = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         details: JSON.stringify(error, null, 2),
-      })
+      }
+
+      console.error(`${logPrefix} Detailed error:`, errorDetails)
       setChatHistory((prev) => [
         ...prev,
         {
