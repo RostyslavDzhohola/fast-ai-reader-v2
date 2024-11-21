@@ -22,9 +22,6 @@ export default defineManifest({
   },
   options_page: 'options.html',
   devtools_page: 'devtools.html',
-  side_panel: {
-    default_path: 'sidepanel.html',
-  },
   background: {
     service_worker: 'src/background/index.ts',
     type: 'module',
@@ -42,7 +39,7 @@ export default defineManifest({
       matches: [],
     },
   ],
-  permissions: ['storage', 'sidePanel', 'activeTab', 'identity'],
+  permissions: ['storage', 'sidePanel', 'activeTab', 'identity', 'tabs', 'windows'],
   host_permissions: [
     'https://discord.com/*',
     'http://localhost:3000/',

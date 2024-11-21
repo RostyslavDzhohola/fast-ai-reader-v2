@@ -151,3 +151,18 @@
 Remember: The side panel visibility is ultimately controlled by Chrome's UI, and we can only configure when it's available and how it behaves when the user interacts with the extension.
 
 Remember: Always test changes thoroughly in the context of a Chrome extension to ensure compatibility and proper functionality.
+
+## Important Permission Issues
+
+### Chrome Tabs Query Permission
+
+- The `chrome.tabs.query()` was returning undefined URLs because the `tabs` permission was missing in manifest
+- Need to add `"tabs"` to the permissions array in manifest.ts
+- Without this permission, the extension cannot access tab URLs properly
+- Example fix in manifest:
+  ```typescript
+  permissions: [
+    'tabs', // Required for chrome.tabs.query to work properly
+    // ... other permissions
+  ]
+  ```
