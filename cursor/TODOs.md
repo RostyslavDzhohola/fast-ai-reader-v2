@@ -19,11 +19,11 @@
 ✅ Add side panel functionality
 ✅ Add loading indicators for authentication
 ✅ Implement registration required prompts
+✅ Fix side panel toggle behavior when clicking extension icon on Discord page
 
 ## High Priority Tasks
 
 - [ ] Replace OpenAI API key functionality with backend API integration
-- [ ] Fix side panel toggle behavior when clicking extension icon on Discord page
 
 ## Authentication and User Management
 

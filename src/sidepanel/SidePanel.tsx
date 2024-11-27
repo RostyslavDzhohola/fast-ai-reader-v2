@@ -3,6 +3,8 @@ import './SidePanel.css'
 import { streamText } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 
+// TODO: Replace the API key with the fetch request to my API backend
+
 // Define a type for our chat messages
 type ChatMessage = {
   role: 'user' | 'assistant'
@@ -36,13 +38,20 @@ export const SidePanel: React.FC = () => {
   useEffect(() => {
     console.log(`${logPrefix} Component mounting...`)
     loadChatHistory()
-    loadApiKey()
+
+    // Notify background script that side panel is ready
+    chrome.runtime.sendMessage({ action: 'sidePanelReady' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error notifying background script:', chrome.runtime.lastError)
+      } else {
+        console.log('Background script notified of side panel ready state')
+      }
+    })
 
     const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
       console.log(`${logPrefix} Storage changed:`, changes)
       if (changes.openaiApiKey) {
         console.log(`${logPrefix} API key changed, reloading...`)
-        loadApiKey()
       }
     }
 
@@ -50,7 +59,6 @@ export const SidePanel: React.FC = () => {
       console.log(`${logPrefix} Received message:`, message)
       if (message.action === 'reloadSidePanel') {
         console.log(`${logPrefix} Reloading side panel...`)
-        loadApiKey()
       }
     }
 
@@ -66,12 +74,12 @@ export const SidePanel: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    // Handle scroll for output
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
-  }, [chatHistory])
 
-  useEffect(() => {
+    // Handle scroll for chat container
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
@@ -81,17 +89,6 @@ export const SidePanel: React.FC = () => {
     chrome.storage.local.get(['chatHistory'], (result) => {
       if (result.chatHistory) {
         setChatHistory(result.chatHistory)
-      }
-    })
-  }
-
-  const loadApiKey = () => {
-    chrome.storage.sync.get(['openaiApiKey'], (result) => {
-      if (result.openaiApiKey) {
-        setApiKey(result.openaiApiKey)
-        console.log('API key loaded successfully') // Add this log
-      } else {
-        console.log('No API key found in storage') // Add this log
       }
     })
   }
@@ -122,6 +119,7 @@ export const SidePanel: React.FC = () => {
     setPrompt('')
     setIsStreaming(true)
 
+    // TODO: move this to the backend
     try {
       console.log(`${logPrefix} Initiating stream with OpenAI...`)
       const { textStream } = await streamText({
@@ -262,7 +260,7 @@ export const SidePanel: React.FC = () => {
     setIsModalOpen(false)
   }
 
-  // New function to process received messages
+  // Function to process received messages
   const processReceivedMessages = (messages: string[]) => {
     console.log(`${logPrefix} Processing ${messages.length} messages`)
     console.log(`${logPrefix} First message preview:`, messages[0]?.substring(0, 100))
@@ -315,20 +313,6 @@ export const SidePanel: React.FC = () => {
       'mailto:rostyslav.dzhohola@pm.me?subject=Feedback%20on%20Discord%20AI%20Extension'
   }
 
-  if (!apiKey) {
-    return (
-      <main className="side-panel">
-        <div className="api-key-missing">
-          <h2>API Key Required change</h2>
-          <p>Please add your OpenAI API key to use the chat feature.</p>
-          <button onClick={handleOpenOptions} className="options-button">
-            Add API Key
-          </button>
-        </div>
-      </main>
-    )
-  }
-
   return (
     <main className="side-panel">
       <div className="button-container">
@@ -338,7 +322,7 @@ export const SidePanel: React.FC = () => {
         <button onClick={handleResearchClick} className="research-button">
           Research
         </button>
-        <div style={{ flexGrow: 1 }}></div> {/* This will push the contact button to the right */}
+        <div style={{ flexGrow: 1 }}></div>
         <button onClick={handleContactClick} className="contact-button">
           Contact
         </button>

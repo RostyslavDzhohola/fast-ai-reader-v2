@@ -106,11 +106,19 @@
     - These changes aim to resolve the "Script execution returned no results" error and restore functionality to the message extraction process.
 
 19. **Options Page Enhancement**:
+
     - Refactored Options component to use a single useEffect for initialization and auth state listening
     - Implemented real-time authentication state updates without page refresh
     - Added comprehensive error handling for authentication flows
     - Improved user experience with automatic UI updates on auth state changes
     - Added console logging for better debugging of sign-in/sign-out actions
+
+20. **Service Worker and Popup Optimization**:
+    - Successfully implemented and fixed Service Worker warm-up solution
+    - Resolved popup double-click issue for non-Discord pages
+    - Improved Service Worker state management
+    - Added proper logging for debugging Service Worker states
+    - Popup now shows correctly on first click for non-Discord pages
 
 ## Completed Tasks
 
@@ -121,6 +129,9 @@
 - Real-time authentication state management implemented
 - Streamlined Options page initialization process
 - Enhanced error handling for authentication flows
+- Service Worker initialization now works correctly
+- Popup shows on first click for non-Discord pages
+- Improved state management and logging
 
 ## Next Steps
 
@@ -130,6 +141,9 @@
 - Consider adding loading states during authentication processes
 - Implement better error messaging for users
 - Add animation transitions for auth state changes
+- Investigate and fix side panel initialization on Discord pages
+- Ensure proper transition between popup and side panel states
+- Add more detailed logging for side panel state transitions
 
 ## Known Issues
 

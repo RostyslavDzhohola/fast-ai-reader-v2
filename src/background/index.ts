@@ -23,6 +23,22 @@ function handleError(error: Error) {
   console.error('An error occurred:', error.message)
 }
 
+// First, add a function to check if a URL is a Discord URL
+function isDiscordURL(url: string | undefined): boolean {
+  return url?.includes('discord.com') || false
+}
+
+// Add a tab update listener to keep track of URL changes
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) {
+    isCurrentURLDiscord = isDiscordURL(changeInfo.url)
+    console.log(`${logPrefix} URL updated:`, {
+      url: changeInfo.url,
+      isDiscord: isCurrentURLDiscord,
+    })
+  }
+})
+
 // ACTIVE TAB CLICK HANDLER
 chrome.action.onClicked.addListener(async (tab) => {
   if (!isServiceWorkerReady) {
@@ -30,7 +46,10 @@ chrome.action.onClicked.addListener(async (tab) => {
     isServiceWorkerReady = true
   }
 
+  // Update isCurrentURLDiscord based on the current tab's URL
+  isCurrentURLDiscord = isDiscordURL(tab.url)
   authStatus = await checkAuthStatus()
+
   console.log('🎯 Click Handler - URL Check:', {
     url: tab.url,
     isDiscord: isCurrentURLDiscord,
@@ -46,37 +65,53 @@ chrome.action.onClicked.addListener(async (tab) => {
 
     // For Discord pages
     if (isCurrentURLDiscord && authStatus) {
-      console.log('🔍 Side Panel')
-      await chrome.sidePanel.setPanelBehavior({
-        openPanelOnActionClick: true,
+      console.log('🔍 Opening Side Panel for Discord page')
+
+      // First, clear the popup to prevent it from showing
+      await chrome.action.setPopup({
+        tabId: tab.id,
+        popup: '',
       })
+
+      // Then set up the side panel
       await chrome.sidePanel.setOptions({
         tabId: tab.id,
         path: '/sidepanel.html',
         enabled: true,
       })
-      // Clear popup for authenticated Discord
-      await chrome.action.setPopup({
-        tabId: tab.id,
-        popup: '',
+
+      // Force the side panel to open
+      await chrome.sidePanel.setPanelBehavior({
+        openPanelOnActionClick: false, // Changed to false to prevent default behavior
       })
+
+      // Explicitly open the side panel
+      await chrome.sidePanel.open({ tabId: tab.id }).catch((error) => {
+        console.error('Failed to open side panel:', error)
+      })
+
+      console.log('🔍 Side panel setup completed')
     } else {
       // For non-Discord pages or unauthenticated
-      console.log('🔍 Sign in or Switch to Discord Popup')
+      console.log('🔍 Sign in or Switch to Discord Popup', {
+        isDiscord: isCurrentURLDiscord,
+        authStatus,
+      })
 
-      // Set popup and wait for it to be ready
+      // Disable side panel first
+      await chrome.sidePanel.setOptions({
+        tabId: tab.id,
+        enabled: false,
+      })
+
+      // Then set up popup
       await chrome.action.setPopup({
         tabId: tab.id,
         popup: '/popup.html',
       })
 
-      // Force popup to show by clicking the action again
+      // Force popup to show
       await chrome.action.openPopup()
-
-      await chrome.sidePanel.setOptions({
-        tabId: tab.id,
-        enabled: false,
-      })
     }
   } catch (error) {
     if (error instanceof Error) {
@@ -84,6 +119,15 @@ chrome.action.onClicked.addListener(async (tab) => {
       handleError(error)
     }
   }
+})
+
+// Add this listener to ensure side panel is ready when needed
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'sidePanelReady') {
+    console.log('🔍 Side panel reported ready')
+    sendResponse({ success: true })
+  }
+  return true
 })
 
 // Message listener
@@ -268,3 +312,31 @@ async function handlePostSignIn(isDiscordPage: boolean): Promise<void> {
     throw error
   }
 }
+
+// Add at the top with other imports/constants
+const logPrefix = '[Background]'
+
+// Add these listeners to track popup events
+chrome.action.onClicked.addListener((tab) => {
+  console.log(`${logPrefix} Extension icon clicked, popup should display`)
+})
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'popup') {
+    console.log(`${logPrefix} Popup connected`)
+
+    port.onDisconnect.addListener(() => {
+      console.log(`${logPrefix} Popup disconnected`)
+    })
+  }
+})
+
+// Add this to track when popup is created
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.url?.includes('popup.html')) {
+    console.log(`${logPrefix} Popup window loaded`, {
+      tabId: sender.tab?.id,
+      frameId: sender.frameId,
+    })
+  }
+})
