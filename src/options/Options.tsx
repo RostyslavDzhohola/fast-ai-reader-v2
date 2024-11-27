@@ -193,115 +193,51 @@ export const Options: React.FC = () => {
 
   return (
     <div className="options-layout">
-      <aside className="user-profile-sidebar">
-        {isGoogleSignedIn && userInfo ? (
-          <div className="user-profile">
-            <img src={userInfo.picture} alt="Profile" className="profile-image" />
-            <div className="user-info">
-              <h3>{userInfo.name}</h3>
-              <p>{userInfo.email}</p>
-            </div>
-            <button onClick={handleSignOut} className="sign-out-button">
-              Sign Out
-            </button>
+      {isGoogleSignedIn && userInfo ? (
+        <div className="user-profile">
+          <img src={userInfo.picture} alt="Profile" className="profile-image" />
+          <div className="user-info">
+            <h3>{userInfo.name}</h3>
+            <p>{userInfo.email}</p>
           </div>
-        ) : (
-          <div className="user-profile">
-            {registrationRequired ? (
-              <>
-                <h3>Registration Required</h3>
-                <p>Please register on our website first to use this extension.</p>
-                <button
-                  onClick={() =>
-                    chrome.tabs.create({ url: 'https://discord-ai-orcin.vercel.app/' })
-                  }
-                  className="registration-button"
-                >
-                  Register Now
-                </button>
-                <button onClick={() => setRegistrationRequired(false)} className="back-button">
-                  Back
-                </button>
-              </>
-            ) : (
-              <>
-                <h3>Not Signed In</h3>
-                <p>Sign in to use the extension</p>
-                <button onClick={handleSignIn} className="sign-in-button" disabled={isSigningIn}>
-                  {isSigningIn ? (
-                    <span className="loading-container">
-                      <span className="loading-spinner"></span>
-                      Signing in...
-                    </span>
-                  ) : (
-                    'Sign in with Google'
-                  )}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-      </aside>
-
-      <main className="options-container">
-        <section className="api-key-section">
-          <h3>{isKeySet ? 'API Key Set' : 'API Key Required'}</h3>
-          {isKeySet ? (
-            <div className="api-key-set">
-              <p>
-                Your API key is set:{' '}
-                <span className="highlighted-key-container">
-                  {copySuccess && <span className="copy-success">Copied</span>}
-                  <span
-                    ref={highlightedKeyRef}
-                    className="highlighted-key"
-                    onClick={copyToClipboard}
-                    title="Click to copy"
-                  >
-                    {maskApiKey(apiKey)}
-                  </span>
-                </span>
-              </p>
-              <p>You're ready to use the extension!</p>
-              <div className="button-container">
-                <a
-                  href="https://discord.com/app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="discord-link"
-                >
-                  Open Discord App
-                </a>
-                <button onClick={deleteApiKey} className="delete-button">
-                  Delete API Key
-                </button>
-              </div>
-            </div>
+          <button onClick={handleSignOut} className="sign-out-button">
+            Sign Out
+          </button>
+        </div>
+      ) : (
+        <div className="user-profile">
+          {registrationRequired ? (
+            <>
+              <h3>Registration Required</h3>
+              <p>Please register on our website first to use this extension.</p>
+              <button
+                onClick={() => chrome.tabs.create({ url: 'https://discord-ai-orcin.vercel.app/' })}
+                className="registration-button"
+              >
+                Register Now
+              </button>
+              <button onClick={() => setRegistrationRequired(false)} className="back-button">
+                Back
+              </button>
+            </>
           ) : (
-            <div className="api-key-container">
-              <label htmlFor="api-key">OpenAI API Key:</label>
-              <input
-                type="password"
-                id="api-key"
-                value={apiKey}
-                onChange={handleApiKeyChange}
-                placeholder="Enter your OpenAI API key"
-              />
-              <button onClick={saveApiKey}>Save API Key</button>
-              <iframe
-                src="https://www.loom.com/embed/ab4e201e69664ceaa1e8139cde51f774?sid=cedc3274-2c56-4437-a761-3878af97d3be"
-                allowFullScreen
-              ></iframe>
-              <p className="api-key-link">
-                Don't have an API key?{' '}
-                <a href="https://platform.openai.com/" target="_blank" rel="noopener noreferrer">
-                  Get one here
-                </a>
-              </p>
-            </div>
+            <>
+              <h3>Not Signed In</h3>
+              <p>Sign in to use the extension</p>
+              <button onClick={handleSignIn} className="sign-in-button" disabled={isSigningIn}>
+                {isSigningIn ? (
+                  <span className="loading-container">
+                    <span className="loading-spinner"></span>
+                    Signing in...
+                  </span>
+                ) : (
+                  'Sign in with Google'
+                )}
+              </button>
+            </>
           )}
-        </section>
-      </main>
+        </div>
+      )}
     </div>
   )
 }

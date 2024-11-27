@@ -65,29 +65,24 @@ chrome.action.onClicked.addListener(async (tab) => {
 
     // For Discord pages
     if (isCurrentURLDiscord && authStatus) {
-      console.log('🔍 Opening Side Panel for Discord page')
+      console.log('🔍 Setting up Side Panel for Discord page')
 
-      // First, clear the popup to prevent it from showing
+      // First, clear the popup
       await chrome.action.setPopup({
         tabId: tab.id,
         popup: '',
       })
 
-      // Then set up the side panel
+      // Set up the side panel
       await chrome.sidePanel.setOptions({
         tabId: tab.id,
         path: '/sidepanel.html',
         enabled: true,
       })
 
-      // Force the side panel to open
+      // Let Chrome handle the panel opening on click
       await chrome.sidePanel.setPanelBehavior({
-        openPanelOnActionClick: false, // Changed to false to prevent default behavior
-      })
-
-      // Explicitly open the side panel
-      await chrome.sidePanel.open({ tabId: tab.id }).catch((error) => {
-        console.error('Failed to open side panel:', error)
+        openPanelOnActionClick: true,
       })
 
       console.log('🔍 Side panel setup completed')

@@ -1,3 +1,6 @@
+// For production: https://discord-ai-orcin.vercel.app/
+// For development: http://localhost:3000/
+
 // Interface definitions
 interface AuthUser {
   id: string
@@ -156,6 +159,7 @@ export async function initializeGoogleAuth(): Promise<GoogleAuthResponse> {
 async function authenticateWithBackend(accessToken: string): Promise<AuthResponse> {
   console.log('Sending authentication request to backend...')
 
+  // TODO: Change this to the production URL
   try {
     const response = await fetch('http://localhost:3000/api/authenticate', {
       method: 'POST',
