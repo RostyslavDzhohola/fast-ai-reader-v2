@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
 import './SidePanel.css'
-import { streamText } from 'ai'
-import { createOpenAI } from '@ai-sdk/openai'
+import { useChat } from 'ai/react'
 
 // TODO: Replace the API key with the fetch request to my API backend
+// Development API endpoint: https://localhost:3000/api/chat
+// Production API endpoint: https://discord-ai-extension.vercel.app/api/chat
 
 // Define a type for our chat messages
 type ChatMessage = {
@@ -16,23 +17,123 @@ type ChatMessage = {
 const logPrefix = '[SidePanel]'
 
 export const SidePanel: React.FC = () => {
+  const [authToken, setAuthToken] = useState<string>('')
+
+  useEffect(() => {
+    chrome.storage.local.get('authToken').then((result) => {
+      if (result.authToken) {
+        console.log(`${logPrefix} Auth token loaded from storage`)
+        setAuthToken(result.authToken)
+      } else {
+        console.warn(`${logPrefix} No auth token found in storage`)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (authToken) {
+      console.log(`${logPrefix} Current auth token:`, {
+        token: authToken,
+        length: authToken.length,
+        prefix: authToken.substring(0, 15) + '...',
+      })
+    }
+  }, [authToken])
+
+  const {
+    messages: aiMessages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    error,
+    isLoading,
+    setMessages,
+    append,
+  } = useChat({
+    api: 'http://localhost:3000/api/chat',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    credentials: 'same-origin',
+    onResponse: (response: Response) => {
+      // Log detailed request information
+      console.log(`${logPrefix} Request details:`, {
+        url: response.url,
+        method: response.type,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+
+      // Log all request headers
+      const requestHeaders = Array.from(response.headers.entries())
+      console.log(`${logPrefix} Request headers:`, {
+        authorization: response.headers.get('authorization'),
+        contentType: response.headers.get('content-type'),
+        allHeaders: Object.fromEntries(requestHeaders),
+      })
+
+      // Log response details
+      console.log(`${logPrefix} Response details:`, {
+        status: response.status,
+        statusText: response.statusText,
+        type: response.type,
+        ok: response.ok,
+      })
+
+      // Log response headers
+      const responseHeaders = Object.fromEntries(response.headers.entries())
+      console.log(`${logPrefix} Response headers:`, responseHeaders)
+
+      // Log response body
+      response
+        .clone() // Clone the response to avoid consuming it
+        .json()
+        .then((data) => {
+          console.log(`${logPrefix} Response body:`, {
+            data,
+            type: typeof data,
+            keys: Object.keys(data),
+          })
+        })
+        .catch((err) => {
+          console.error(`${logPrefix} Error parsing response body:`, err)
+          // Try to get the raw text if JSON parsing fails
+          response
+            .clone()
+            .text()
+            .then((text) => {
+              console.log(`${logPrefix} Raw response body:`, text)
+            })
+        })
+    },
+    onError: (error) => {
+      console.error(`${logPrefix} Chat error:`, {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      })
+
+      // Log additional error context if available
+      if (error instanceof Response) {
+        console.error(`${logPrefix} Response error details:`, {
+          status: error.status,
+          statusText: error.statusText,
+          headers: Object.fromEntries(error.headers.entries()),
+        })
+      }
+    },
+  })
+
   console.log('Side panel component mounted')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [prompt, setPrompt] = useState<string>('')
-  const [isStreaming, setIsStreaming] = useState<boolean>(false)
   const outputRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
   // New state for modal and message count
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
   const [messageCount, setMessageCount] = useState<number>(10) // Default to 10 messages
-
-  // New state for API key
-  const [apiKey, setApiKey] = useState<string | undefined>(undefined)
-
-  const openaiClient = createOpenAI({
-    apiKey: apiKey,
-  })
 
   // Load chat history and API key when component mounts
   useEffect(() => {
@@ -93,119 +194,26 @@ export const SidePanel: React.FC = () => {
     })
   }
 
-  const handleStreamText = async () => {
-    console.log(`${logPrefix} Starting text stream...`)
-    if (!prompt.trim()) {
-      console.log(`${logPrefix} Empty prompt, aborting stream`)
-      return
-    }
-
-    if (!apiKey) {
-      console.warn(`${logPrefix} API key missing, cannot proceed with stream`)
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Error: API key is missing. Please set your OpenAI API key in the options page.',
-        },
-      ])
-      return
-    }
-
-    console.log(`${logPrefix} Streaming with prompt:`, prompt)
-    const userMessage: ChatMessage = { role: 'user', content: prompt }
-    const newHistory = [...chatHistory, userMessage]
-    setChatHistory(newHistory)
-    setPrompt('')
-    setIsStreaming(true)
-
-    // TODO: move this to the backend
-    try {
-      console.log(`${logPrefix} Initiating stream with OpenAI...`)
-      const { textStream } = await streamText({
-        model: openaiClient('gpt-4o-mini'),
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are a helpful assistant with a goal to help the user with discord research. You will be provided instructions from the user and you will get text of the discord messages that you will need to process and provide the user with the information they are looking for.',
-          },
-          ...newHistory.map((msg) => ({ role: msg.role, content: msg.content })),
-        ],
-        onFinish({ usage }) {
-          console.log('Usage of the onFinish:', usage)
-        },
-      })
-
-      let assistantResponse = ''
-      for await (const chunk of textStream) {
-        assistantResponse += chunk
-        setChatHistory((prev) => [
-          ...prev.slice(0, -1),
-          { role: 'assistant', content: assistantResponse },
-        ])
-      }
-
-      const updatedHistory: ChatMessage[] = [
-        ...newHistory,
-        { role: 'assistant' as const, content: assistantResponse },
-      ]
-      setChatHistory(updatedHistory)
-      chrome.storage.local.set({ chatHistory: updatedHistory })
-    } catch (error) {
-      console.error(`${logPrefix} Stream error:`, error)
-      const errorDetails = {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        details: JSON.stringify(error, null, 2),
-      }
-
-      console.error(`${logPrefix} Detailed error:`, errorDetails)
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content:
-            'An error occurred while streaming text. Please check the console for more details.',
-        },
-      ])
-    } finally {
-      setIsStreaming(false)
-    }
-  }
-
-  const handleOpenOptions = () => {
-    const optionsUrl = chrome.runtime.getURL('options.html')
-    window.open(optionsUrl, '_blank')
-
-    // Send a message to the background script to set a flag
-    chrome.runtime.sendMessage({ action: 'setApiKeyAdditionFlag' })
-  }
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isStreaming) {
-      handleStreamText()
+    if (e.key === 'Enter' && !isLoading) {
+      console.log(`${logPrefix} Submitting message with auth:`, {
+        hasToken: !!authToken,
+        tokenLength: authToken?.length,
+        tokenPrefix: authToken ? `${authToken.substring(0, 15)}...` : 'none',
+        input,
+      })
+      e.preventDefault()
+      handleSubmit(e as any)
     }
   }
 
   const handleResetChat = () => {
-    setChatHistory([])
-    chrome.storage.local.remove(['chatHistory'], () => {
-      console.log('Chat history cleared')
-    })
+    setMessages([])
+    console.log('Chat history cleared')
   }
 
   const handleResearchClick = () => {
-    if (!apiKey) {
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Error: API key is missing. Please set your OpenAI API key in the options page.',
-        },
-      ])
-      return
-    }
+    // TODO: rebuild to use the new flow from useChat
     setIsModalOpen(true)
   }
 
@@ -273,38 +281,11 @@ export const SidePanel: React.FC = () => {
     const messagesText = messages.join('')
     console.log('Combined messages text:', messagesText)
 
-    // Create a system message for the AI
-    const systemMessage: ChatMessage = {
+    // Create a system message for the AI using the standard Message format
+    append({
       role: 'user',
       content: `I have extracted ${messages.length} messages from a Discord chat. Please analyze these messages and be ready to answer questions about them. Here are the messages:\n\n${messagesText}`,
-      isExtracted: true, // Mark this as an extracted message
-    }
-
-    console.log('Created system message:', systemMessage)
-
-    // Add the system message to the chat history
-    setChatHistory((prevHistory) => {
-      console.log('Updating chat history with system message')
-      return [...prevHistory, systemMessage]
-    })
-
-    // Create an AI response message
-    const aiResponse: ChatMessage = {
-      role: 'assistant',
-      content: `I've received and processed ${messages.length} Discord messages. What questions do you have about this conversation?`,
-    }
-
-    console.log('Created AI response:', aiResponse)
-
-    // Add the AI response to the chat history
-    setChatHistory((prevHistory) => {
-      console.log('Updating chat history with AI response')
-      return [...prevHistory, aiResponse]
-    })
-
-    // Save the updated chat history
-    chrome.storage.local.set({ chatHistory: [...chatHistory, systemMessage, aiResponse] }, () => {
-      console.log('Chat history saved to storage')
+      id: Date.now().toString(),
     })
   }
 
@@ -312,6 +293,18 @@ export const SidePanel: React.FC = () => {
     window.location.href =
       'mailto:rostyslav.dzhohola@pm.me?subject=Feedback%20on%20Discord%20AI%20Extension'
   }
+
+  // Add error effect to log any chat errors
+  useEffect(() => {
+    if (error) {
+      console.error(`${logPrefix} Chat error occurred:`, error)
+    }
+  }, [error])
+
+  // Add loading state effect
+  useEffect(() => {
+    console.log(`${logPrefix} Chat loading state:`, isLoading)
+  }, [isLoading])
 
   return (
     <main className="side-panel">
@@ -329,12 +322,9 @@ export const SidePanel: React.FC = () => {
       </div>
       <div className="chat-container" ref={chatContainerRef}>
         <div className="messages" ref={outputRef}>
-          {chatHistory.length > 0 ? (
-            chatHistory.map((message, index) => (
-              <div
-                key={index}
-                className={`message ${message.role} ${message.isExtracted ? 'extracted' : ''}`}
-              >
+          {aiMessages.length > 0 ? (
+            aiMessages.map((message) => (
+              <div key={message.id} className={`message ${message.role}`}>
                 <pre>{message.content}</pre>
               </div>
             ))
@@ -346,19 +336,19 @@ export const SidePanel: React.FC = () => {
       <div className="input-container">
         <input
           type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          value={input}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder="Type your message here..."
           className="prompt-input"
-          disabled={isStreaming || !apiKey}
+          disabled={isLoading}
         />
         <button
-          onClick={handleStreamText}
-          disabled={isStreaming || !prompt.trim() || !apiKey}
+          onClick={(e) => handleSubmit(e as any)}
+          disabled={isLoading || !input.trim()}
           className="ask-button"
         >
-          {isStreaming ? 'Asking...' : 'Ask'}
+          {isLoading ? 'Asking...' : 'Ask'}
         </button>
       </div>
 
