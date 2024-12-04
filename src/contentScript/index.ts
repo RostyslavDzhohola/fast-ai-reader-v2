@@ -68,7 +68,7 @@ async function extractMessages(count: number): Promise<string[]> {
         extractMessages()
       }
     }
-  }
+  } // test
 
   await scrollAndExtract()
   console.log(`Extracted ${messages.length} messages out of ${count} requested`)
