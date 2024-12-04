@@ -137,6 +137,13 @@ export async function initializeGoogleAuth(): Promise<GoogleAuthResponse> {
       user: authResponse.user,
     })
 
+    // Send message to notify successful sign-in
+    chrome.runtime.sendMessage({
+      action: 'AUTH_STATE_CHANGED',
+      state: 'SIGNED_IN',
+      token: authResponse.token,
+    })
+
     return {
       success: true,
       userInfo: {
@@ -250,12 +257,15 @@ export async function handleSignOut() {
     console.log('Starting sign out process...')
     const { googleToken, authToken } = await chrome.storage.local.get(['googleToken', 'authToken'])
 
+    console.log('Current tokens before removal:', { googleToken, authToken })
+
     if (googleToken) {
       console.log('Revoking Google access token...')
       await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${googleToken}`)
       await chrome.identity.removeCachedAuthToken({ token: googleToken })
     }
 
+    // Clear all auth-related storage
     await chrome.storage.local.remove([
       'googleToken',
       'tokenTimestamp',
@@ -263,6 +273,16 @@ export async function handleSignOut() {
       'authToken',
       'user',
     ])
+
+    // Verify tokens were removed
+    const afterRemoval = await chrome.storage.local.get(['googleToken', 'authToken'])
+    console.log('Storage after removal:', afterRemoval)
+
+    // Send message to notify sign-out
+    chrome.runtime.sendMessage({
+      action: 'AUTH_STATE_CHANGED',
+      state: 'SIGNED_OUT',
+    })
 
     console.log('Sign out successful')
     return { success: true }

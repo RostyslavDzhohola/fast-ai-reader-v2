@@ -367,3 +367,41 @@ body {
 .options-button:hover {
   background-color: #4fa8d5;
 }
+
+.signed-out-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 20px;
+}
+
+.signed-out-content {
+  text-align: center;
+  max-width: 300px;
+}
+
+.signed-out-content h2 {
+  margin-bottom: 16px;
+  color: #e91e63; /* or your preferred color */
+}
+
+.signed-out-content p {
+  margin-bottom: 24px;
+  color: #666;
+}
+
+.sign-in-button {
+  background-color: #5865f2; /* Discord color */
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.sign-in-button:hover {
+  background-color: #4752c4;
+}

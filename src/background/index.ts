@@ -335,3 +335,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })
   }
 })
+
+// Add this message handler in background/index.ts
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  // ... existing listeners ...
+
+  if (message.action === 'extractMessages') {
+    console.log('Background script received extract request:', message)
+
+    try {
+      // Get the active tab
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!activeTab?.id) {
+        throw new Error('No active tab found')
+      }
+
+      // Forward the message to content script
+      const response = await chrome.tabs.sendMessage(activeTab.id, message)
+      console.log('Received response from content script:', response)
+      sendResponse(response)
+    } catch (error) {
+      console.error('Error in message relay:', error)
+      sendResponse({ error: 'Failed to communicate with Discord tab' })
+    }
+    return true
+  }
+})

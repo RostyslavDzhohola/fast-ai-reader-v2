@@ -30,15 +30,15 @@ export const SidePanel: React.FC = () => {
     })
   }, [])
 
-  useEffect(() => {
-    if (authToken) {
-      console.log(`${logPrefix} Current auth token:`, {
-        token: authToken,
-        length: authToken.length,
-        prefix: authToken.substring(0, 15) + '...',
-      })
-    }
-  }, [authToken])
+  // useEffect(() => {
+  //   if (authToken) {
+  //     console.log(`${logPrefix} Current auth token:`, {
+  //       token: authToken,
+  //       length: authToken.length,
+  //       prefix: authToken.substring(0, 15) + '...',
+  //     })
+  //   }
+  // }, [authToken])
 
   const {
     messages: aiMessages,
@@ -135,6 +135,9 @@ export const SidePanel: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
   const [messageCount, setMessageCount] = useState<number>(10) // Default to 10 messages
 
+  // Add this state near your other state declarations
+  const [isSignedIn, setIsSignedIn] = useState(true)
+
   // Load chat history and API key when component mounts
   useEffect(() => {
     console.log(`${logPrefix} Component mounting...`)
@@ -218,57 +221,36 @@ export const SidePanel: React.FC = () => {
   }
 
   const handleModalSubmit = () => {
-    console.log(`Requesting to extract ${messageCount} messages`)
+    console.log(`${logPrefix} Requesting to extract ${messageCount} messages`)
 
-    // Send a message to the background script
-    chrome.runtime.sendMessage({ action: 'extractMessages', count: messageCount }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error sending message:', chrome.runtime.lastError)
-        // Display an error message to the user
-        setChatHistory((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: 'An error occurred while extracting messages. Please try again.',
-          },
-        ])
-        return
-      }
+    chrome.runtime.sendMessage(
+      {
+        action: 'extractMessages',
+        count: messageCount,
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(`${logPrefix} Error:`, chrome.runtime.lastError)
+          return
+        }
 
-      console.log('Received response from background script:', response)
+        try {
+          if (response?.messages && Array.isArray(response.messages)) {
+            console.log(`${logPrefix} Received ${response.messages.length} messages`)
+            processReceivedMessages(response.messages)
+          } else {
+            console.error(`${logPrefix} Invalid response format:`, response)
+          }
+        } catch (error) {
+          console.error(`${logPrefix} Processing error:`, error)
+        }
+      },
+    )
 
-      if (response && response.messages && response.messages.length > 0) {
-        // Process the received messages
-        processReceivedMessages(response.messages)
-      } else if (response && response.error) {
-        console.error('Error extracting messages:', response.error, response.details)
-        // Display an error message to the user
-        setChatHistory((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: `An error occurred while extracting messages: ${response.error}`,
-          },
-        ])
-      } else {
-        console.error('No messages received in the response')
-        // Display an error message to the user
-        setChatHistory((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content:
-              'No messages were extracted. The chat might be empty or there might be an issue with message extraction.',
-          },
-        ])
-      }
-    })
-
-    // Close the modal
     setIsModalOpen(false)
   }
 
-  // Function to process received messages
+  // Update processReceivedMessages to include more logging
   const processReceivedMessages = (messages: string[]) => {
     console.log(`${logPrefix} Processing ${messages.length} messages`)
     console.log(`${logPrefix} First message preview:`, messages[0]?.substring(0, 100))
@@ -277,16 +259,18 @@ export const SidePanel: React.FC = () => {
       messages[messages.length - 1]?.substring(0, 100),
     )
 
-    // Combine messages into a single string
-    const messagesText = messages.join('')
-    console.log('Combined messages text:', messagesText)
+    const messagesText = messages.join('\n')
+    console.log(`${logPrefix} Combined messages length:`, messagesText.length)
 
-    // Create a system message for the AI using the standard Message format
-    append({
-      role: 'user',
+    // Log the message being sent to AI
+    const aiMessage = {
+      role: 'user' as const,
       content: `I have extracted ${messages.length} messages from a Discord chat. Please analyze these messages and be ready to answer questions about them. Here are the messages:\n\n${messagesText}`,
       id: Date.now().toString(),
-    })
+    }
+    console.log(`${logPrefix} Sending message to AI:`, aiMessage)
+
+    append(aiMessage)
   }
 
   const handleContactClick = () => {
@@ -306,69 +290,118 @@ export const SidePanel: React.FC = () => {
     console.log(`${logPrefix} Chat loading state:`, isLoading)
   }, [isLoading])
 
+  // Update the auth state effect
+  useEffect(() => {
+    const handleAuthStateChange = (message: any) => {
+      if (message.action === 'AUTH_STATE_CHANGED') {
+        console.log('Auth state changed:', message.state)
+
+        if (message.state === 'SIGNED_IN') {
+          setIsSignedIn(true)
+          setAuthToken(message.token)
+          console.log('User signed in, token:', message.token)
+        } else if (message.state === 'SIGNED_OUT') {
+          setIsSignedIn(false)
+          setAuthToken('')
+          setMessages([])
+          console.log('User signed out')
+        }
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleAuthStateChange)
+    return () => chrome.runtime.onMessage.removeListener(handleAuthStateChange)
+  }, [])
+
+  // Add this component for the signed-out state
+  const SignedOutView = () => {
+    const handleOptionsClick = () => {
+      chrome.runtime.openOptionsPage()
+    }
+
+    return (
+      <div className="signed-out-container">
+        <div className="signed-out-content">
+          <h2>Not Signed In</h2>
+          <p>You need to be signed in to use the Discord AI Assistant.</p>
+          <button onClick={handleOptionsClick} className="sign-in-button">
+            Go to Sign In
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <main className="side-panel">
-      <div className="button-container">
-        <button onClick={handleResetChat} className="reset-button">
-          Clear Chat
-        </button>
-        <button onClick={handleResearchClick} className="research-button">
-          Research
-        </button>
-        <div style={{ flexGrow: 1 }}></div>
-        <button onClick={handleContactClick} className="contact-button">
-          Contact
-        </button>
-      </div>
-      <div className="chat-container" ref={chatContainerRef}>
-        <div className="messages" ref={outputRef}>
-          {aiMessages.length > 0 ? (
-            aiMessages.map((message) => (
-              <div key={message.id} className={`message ${message.role}`}>
-                <pre>{message.content}</pre>
-              </div>
-            ))
-          ) : (
-            <div className="empty-chat">AI response will appear here...</div>
-          )}
-        </div>
-      </div>
-      <div className="input-container">
-        <input
-          type="text"
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message here..."
-          className="prompt-input"
-          disabled={isLoading}
-        />
-        <button
-          onClick={(e) => handleSubmit(e as any)}
-          disabled={isLoading || !input.trim()}
-          className="ask-button"
-        >
-          {isLoading ? 'Asking...' : 'Ask'}
-        </button>
-      </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>Research Setup</h2>
-            <p>How many messages would you like to upload to AI?</p>
-            <input
-              type="number"
-              value={messageCount}
-              onChange={(e) => setMessageCount(Number(e.target.value))}
-              min="1"
-              placeholder="Enter number of messages"
-            />
-            <button onClick={handleModalSubmit}>Submit</button>
-            <button onClick={() => setIsModalOpen(false)}>Cancel</button>
+      {isSignedIn ? (
+        // Your existing chat UI
+        <>
+          <div className="button-container">
+            <button onClick={handleResetChat} className="reset-button">
+              Clear Chat
+            </button>
+            <button onClick={handleResearchClick} className="research-button">
+              Research
+            </button>
+            <div style={{ flexGrow: 1 }}></div>
+            <button onClick={handleContactClick} className="contact-button">
+              Contact
+            </button>
           </div>
-        </div>
+          <div className="chat-container" ref={chatContainerRef}>
+            <div className="messages" ref={outputRef}>
+              {aiMessages.length > 0 ? (
+                aiMessages.map((message) => (
+                  <div key={message.id} className={`message ${message.role}`}>
+                    <pre>{message.content}</pre>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-chat">AI response will appear here...</div>
+              )}
+            </div>
+          </div>
+          <div className="input-container">
+            <input
+              type="text"
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message here..."
+              className="prompt-input"
+              disabled={isLoading}
+            />
+            <button
+              onClick={(e) => handleSubmit(e as any)}
+              disabled={isLoading || !input.trim()}
+              className="ask-button"
+            >
+              {isLoading ? 'Asking...' : 'Ask'}
+            </button>
+          </div>
+
+          {/* Modal */}
+          {isModalOpen && (
+            <div className="modal">
+              <div className="modal-content">
+                <h2>Research Setup</h2>
+                <p>How many messages would you like to upload to AI?</p>
+                <input
+                  type="number"
+                  value={messageCount}
+                  onChange={(e) => setMessageCount(Number(e.target.value))}
+                  min="1"
+                  placeholder="Enter number of messages"
+                />
+                <button onClick={handleModalSubmit}>Submit</button>
+                <button onClick={() => setIsModalOpen(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <SignedOutView />
       )}
     </main>
   )

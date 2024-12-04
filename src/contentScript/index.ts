@@ -4,22 +4,24 @@ console.info('contentScript is running')
 chrome.runtime.sendMessage({ action: 'contentScriptReady' })
 
 // Function to extract messages from Discord
-function extractMessages(count: number): string[] {
+async function extractMessages(count: number): Promise<string[]> {
+  console.log('Starting message extraction, requested count:', count)
   const messages: string[] = []
-  const maxScrollAttempts = 10
+  const maxScrollAttempts = 30
   let scrollAttempts = 0
+  let previousMessageCount = 0
 
-  // Function to scroll the chat window
   function scrollChatUp() {
     const chatContainer = document.querySelector('[class*="messagesWrapper_"]')
     if (chatContainer) {
-      chatContainer.scrollTop -= chatContainer.clientHeight
-      return true
+      const previousScrollTop = chatContainer.scrollTop
+      chatContainer.scrollTop = Math.max(0, previousScrollTop - chatContainer.clientHeight * 2)
+      const didScroll = previousScrollTop !== chatContainer.scrollTop
+      return didScroll
     }
     return false
   }
 
-  // Function to extract messages
   function extractMessages() {
     const messageGroups = document.querySelectorAll('[id^="chat-messages-"]')
     let currentUsername = ''
@@ -37,26 +39,39 @@ function extractMessages(count: number): string[] {
 
       contentElements.forEach((contentElement) => {
         const content = contentElement.textContent?.trim() || ''
-        const formattedMessage = `${currentUsername} | ${currentTimestamp}\n${content}\n\n`
-        messages.push(formattedMessage)
+        if (content) {
+          const formattedMessage = `${currentUsername} | ${currentTimestamp}\n${content}\n\n`
+          if (!messages.includes(formattedMessage)) {
+            messages.push(formattedMessage)
+          }
+        }
       })
     })
   }
 
-  // Main extraction loop
-  while (messages.length < count && scrollAttempts < maxScrollAttempts) {
-    extractMessages()
+  async function scrollAndExtract() {
+    while (messages.length < count && scrollAttempts < maxScrollAttempts) {
+      const previousLength = messages.length
+      extractMessages()
 
-    if (messages.length < count) {
-      const scrolled = scrollChatUp()
-      if (!scrolled) break
+      if (messages.length === previousMessageCount) {
+        scrollAttempts++
+      }
+      previousMessageCount = messages.length
 
-      scrollAttempts++
-      // Wait for new messages to load after scrolling
-      new Promise((resolve) => setTimeout(resolve, 1000))
+      if (messages.length < count) {
+        const scrolled = scrollChatUp()
+        if (!scrolled) break
+
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+
+        extractMessages()
+      }
     }
   }
 
+  await scrollAndExtract()
+  console.log(`Extracted ${messages.length} messages out of ${count} requested`)
   return messages.slice(-count)
 }
 
@@ -65,19 +80,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Content script received message:', request)
 
   if (request.action === 'extractMessages') {
-    try {
-      const messages = extractMessages(request.count)
-      console.log('Extracted messages:', messages)
+    extractMessages(request.count).then((messages) => {
+      console.log('Successfully extracted messages:', {
+        count: messages.length,
+        sample: messages[0]?.substring(0, 100),
+      })
       sendResponse({ messages })
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        console.error('Error extracting messages:', error)
-        sendResponse({ error: error.message })
-      } else {
-        console.error('Unknown error:', error)
-        sendResponse({ error: 'An unknown error occurred' })
-      }
-    }
+    })
   }
-  return true // Keep the message channel open for async response
+  return true
 })
