@@ -57,7 +57,10 @@ export const SidePanel: React.FC = () => {
     },
     credentials: 'same-origin',
     onResponse: (response: Response) => {
-      // Log detailed request information
+      // Clone the response once at the beginning
+      const responseClone = response.clone()
+
+      // Log request and response details that don't require body reading
       console.log(`${logPrefix} Request details:`, {
         url: response.url,
         method: response.type,
@@ -66,29 +69,8 @@ export const SidePanel: React.FC = () => {
         headers: Object.fromEntries(response.headers.entries()),
       })
 
-      // Log all request headers
-      const requestHeaders = Array.from(response.headers.entries())
-      console.log(`${logPrefix} Request headers:`, {
-        authorization: response.headers.get('authorization'),
-        contentType: response.headers.get('content-type'),
-        allHeaders: Object.fromEntries(requestHeaders),
-      })
-
-      // Log response details
-      console.log(`${logPrefix} Response details:`, {
-        status: response.status,
-        statusText: response.statusText,
-        type: response.type,
-        ok: response.ok,
-      })
-
-      // Log response headers
-      const responseHeaders = Object.fromEntries(response.headers.entries())
-      console.log(`${logPrefix} Response headers:`, responseHeaders)
-
-      // Log response body
-      response
-        .clone() // Clone the response to avoid consuming it
+      // Try to parse and log the response body
+      responseClone
         .json()
         .then((data) => {
           console.log(`${logPrefix} Response body:`, {
@@ -99,7 +81,7 @@ export const SidePanel: React.FC = () => {
         })
         .catch((err) => {
           console.error(`${logPrefix} Error parsing response body:`, err)
-          // Try to get the raw text if JSON parsing fails
+          // Use another clone for text fallback
           response
             .clone()
             .text()
@@ -126,14 +108,14 @@ export const SidePanel: React.FC = () => {
     },
   })
 
-  console.log('Side panel component mounted')
+  // console.log('Side panel component mounted')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const outputRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
   // New state for modal and message count
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
-  const [messageCount, setMessageCount] = useState<number>(10) // Default to 10 messages
+  const [messageCount, setMessageCount] = useState<number>(100) // Default to 10 messages
 
   // Add this state near your other state declarations
   const [isSignedIn, setIsSignedIn] = useState(true)
