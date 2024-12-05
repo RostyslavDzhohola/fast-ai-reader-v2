@@ -44,18 +44,19 @@ export const SidePanel: React.FC = () => {
     messages: aiMessages,
     input,
     handleInputChange,
-    handleSubmit,
+    handleSubmit: originalHandleSubmit,
     error,
     isLoading,
     setMessages,
     append,
   } = useChat({
-    api: 'http://localhost:3000/api/chat',
+    api: 'http://localhost:3000/api/chat', // TODO: change to production endpoint
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
     },
     credentials: 'same-origin',
+    initialMessages: [],
     onResponse: (response: Response) => {
       // Clone the response once at the beginning
       const responseClone = response.clone()
@@ -107,6 +108,38 @@ export const SidePanel: React.FC = () => {
       }
     },
   })
+
+  // Modify handleSubmit to use append instead of direct storage
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    if (!input.trim()) return
+
+    // Create user message
+    const userMessage = {
+      content: input,
+      role: 'user' as const,
+      id: Date.now().toString(),
+    }
+
+    // Use append to add the message (this will trigger the useEffect)
+    append(userMessage)
+
+    // Call original submit handler
+    await originalHandleSubmit(e)
+  }
+
+  // Update the handleKeyDown to use new handleSubmit
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !isLoading) {
+      console.log(`${logPrefix} Submitting message with auth:`, {
+        hasToken: !!authToken,
+        tokenLength: authToken?.length,
+        tokenPrefix: authToken ? `${authToken.substring(0, 15)}...` : 'none',
+        input,
+      })
+      e.preventDefault()
+      handleSubmit(e as any as React.FormEvent<HTMLFormElement>)
+    }
+  }
 
   // console.log('Side panel component mounted')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
@@ -160,16 +193,38 @@ export const SidePanel: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    // Handle scroll for output
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight
+    // Function to scroll to bottom
+    const scrollToBottom = () => {
+      // Handle scroll for output
+      if (outputRef.current) {
+        outputRef.current.scrollTop = outputRef.current.scrollHeight
+      }
+
+      // Handle scroll for chat container
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+      }
     }
 
-    // Handle scroll for chat container
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    // Scroll when messages change
+    scrollToBottom()
+
+    // Add event listener for when side panel becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        scrollToBottom()
+      }
     }
-  }, [chatHistory])
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Scroll after a short delay to ensure content is rendered
+    setTimeout(scrollToBottom, 100)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [chatHistory, aiMessages]) // Watch both chatHistory and aiMessages
 
   const loadChatHistory = () => {
     chrome.storage.local.get(['chatHistory'], (result) => {
@@ -179,22 +234,11 @@ export const SidePanel: React.FC = () => {
     })
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isLoading) {
-      console.log(`${logPrefix} Submitting message with auth:`, {
-        hasToken: !!authToken,
-        tokenLength: authToken?.length,
-        tokenPrefix: authToken ? `${authToken.substring(0, 15)}...` : 'none',
-        input,
-      })
-      e.preventDefault()
-      handleSubmit(e as any)
-    }
-  }
-
   const handleResetChat = () => {
     setMessages([])
-    console.log('Chat history cleared')
+    chrome.storage.local.remove('aiMessages').then(() => {
+      console.log(`${logPrefix} Chat history cleared from storage`)
+    })
   }
 
   const handleResearchClick = () => {
@@ -272,8 +316,17 @@ export const SidePanel: React.FC = () => {
     console.log(`${logPrefix} Chat loading state:`, isLoading)
   }, [isLoading])
 
-  // Update the auth state effect
+  // Update the auth state effect to also handle message loading
   useEffect(() => {
+    const loadStoredMessages = () => {
+      chrome.storage.local.get('aiMessages').then((result) => {
+        if (result.aiMessages) {
+          console.log(`${logPrefix} Loading ${result.aiMessages.length} messages from storage`)
+          setMessages(result.aiMessages)
+        }
+      })
+    }
+
     const handleAuthStateChange = (message: any) => {
       if (message.action === 'AUTH_STATE_CHANGED') {
         console.log('Auth state changed:', message.state)
@@ -282,6 +335,8 @@ export const SidePanel: React.FC = () => {
           setIsSignedIn(true)
           setAuthToken(message.token)
           console.log('User signed in, token:', message.token)
+          // Load messages when user signs in
+          loadStoredMessages()
         } else if (message.state === 'SIGNED_OUT') {
           setIsSignedIn(false)
           setAuthToken('')
@@ -290,6 +345,19 @@ export const SidePanel: React.FC = () => {
         }
       }
     }
+
+    // Check initial auth state and load messages if authenticated
+    chrome.storage.local.get(['authToken', 'aiMessages'], (result) => {
+      if (result.authToken) {
+        setIsSignedIn(true)
+        setAuthToken(result.authToken)
+        // Load messages on initial mount if user is authenticated
+        if (result.aiMessages) {
+          console.log(`${logPrefix} Initial load: ${result.aiMessages.length} messages`)
+          setMessages(result.aiMessages)
+        }
+      }
+    })
 
     chrome.runtime.onMessage.addListener(handleAuthStateChange)
     return () => chrome.runtime.onMessage.removeListener(handleAuthStateChange)
@@ -313,6 +381,17 @@ export const SidePanel: React.FC = () => {
       </div>
     )
   }
+
+  // Keep the existing useEffect for storage - it will now handle both user and AI messages
+  useEffect(() => {
+    if (aiMessages.length > 0) {
+      chrome.storage.local.set({ aiMessages }).then(() => {
+        console.log(`${logPrefix} Saved ${aiMessages.length} messages to storage`, {
+          lastMessage: aiMessages[aiMessages.length - 1],
+        })
+      })
+    }
+  }, [aiMessages])
 
   return (
     <main className="side-panel">
