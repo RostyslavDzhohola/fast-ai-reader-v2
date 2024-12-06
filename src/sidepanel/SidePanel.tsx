@@ -22,7 +22,7 @@ export const SidePanel: React.FC = () => {
   useEffect(() => {
     chrome.storage.local.get('authToken').then((result) => {
       if (result.authToken) {
-        console.log(`${logPrefix} Auth token loaded from storage`)
+        // console.log(`${logPrefix} Auth token loaded from storage`)
         setAuthToken(result.authToken)
       } else {
         console.warn(`${logPrefix} No auth token found in storage`)
@@ -74,11 +74,11 @@ export const SidePanel: React.FC = () => {
       responseClone
         .json()
         .then((data) => {
-          console.log(`${logPrefix} Response body:`, {
-            data,
-            type: typeof data,
-            keys: Object.keys(data),
-          })
+          // console.log(`${logPrefix} Response body:`, {
+          //   data,
+          //   type: typeof data,
+          //   keys: Object.keys(data),
+          // })
         })
         .catch((err) => {
           console.error(`${logPrefix} Error parsing response body:`, err)
@@ -130,12 +130,12 @@ export const SidePanel: React.FC = () => {
   // Update the handleKeyDown to use new handleSubmit
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !isLoading) {
-      console.log(`${logPrefix} Submitting message with auth:`, {
-        hasToken: !!authToken,
-        tokenLength: authToken?.length,
-        tokenPrefix: authToken ? `${authToken.substring(0, 15)}...` : 'none',
-        input,
-      })
+      // console.log(`${logPrefix} Submitting message with auth:`, {
+      //   hasToken: !!authToken,
+      //   tokenLength: authToken?.length,
+      //   tokenPrefix: authToken ? `${authToken.substring(0, 15)}...` : 'none',
+      //   input,
+      // })
       e.preventDefault()
       handleSubmit(e as any as React.FormEvent<HTMLFormElement>)
     }
@@ -298,15 +298,15 @@ export const SidePanel: React.FC = () => {
 
   // Update processReceivedMessages to include more logging
   const processReceivedMessages = (messages: string[]) => {
-    console.log(`${logPrefix} Processing ${messages.length} messages`)
-    console.log(`${logPrefix} First message preview:`, messages[0]?.substring(0, 100))
-    console.log(
-      `${logPrefix} Last message preview:`,
-      messages[messages.length - 1]?.substring(0, 100),
-    )
+    // console.log(`${logPrefix} Processing ${messages.length} messages`)
+    // console.log(`${logPrefix} First message preview:`, messages[0]?.substring(0, 100))
+    // console.log(
+    //   `${logPrefix} Last message preview:`,
+    //   messages[messages.length - 1]?.substring(0, 100),
+    // )
 
     const messagesText = messages.join('\n')
-    console.log(`${logPrefix} Combined messages length:`, messagesText.length)
+    // console.log(`${logPrefix} Combined messages length:`, messagesText.length)
 
     // Log the message being sent to AI
     const aiMessage = {
