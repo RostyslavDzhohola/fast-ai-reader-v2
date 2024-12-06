@@ -1,5 +1,7 @@
 import { initializeGoogleAuth, handleSignOut, refreshTokenIfNeeded, checkAuthStatus } from './auth'
 
+// TODO: Fix the double click issue required for opening side panels
+
 console.log('background is running')
 
 // Add URL state tracking at the top

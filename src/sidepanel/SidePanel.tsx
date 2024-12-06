@@ -4,7 +4,7 @@ import { useChat } from 'ai/react'
 
 // TODO: Replace the API key with the fetch request to my API backend
 // Development API endpoint: https://localhost:3000/api/chat
-// Production API endpoint: https://discord-ai-extension.vercel.app/api/chat
+// Production API endpoint: https://discord-ai-orcin.vercel.app/api/chat
 
 // Define a type for our chat messages
 type ChatMessage = {
@@ -50,7 +50,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'http://localhost:3000/api/chat', // TODO: change to production endpoint
+    api: 'https://discord-ai-orcin.vercel.app/api/chat', // TODO: change to production endpoint
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
@@ -167,13 +167,6 @@ export const SidePanel: React.FC = () => {
       }
     })
 
-    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-      console.log(`${logPrefix} Storage changed:`, changes)
-      if (changes.openaiApiKey) {
-        console.log(`${logPrefix} API key changed, reloading...`)
-      }
-    }
-
     const handleMessage = (message: any) => {
       console.log(`${logPrefix} Received message:`, message)
       if (message.action === 'reloadSidePanel') {
@@ -181,20 +174,33 @@ export const SidePanel: React.FC = () => {
       }
     }
 
-    chrome.storage.onChanged.addListener(handleStorageChange)
     chrome.runtime.onMessage.addListener(handleMessage)
 
     console.log(`${logPrefix} Component mounted successfully`)
     return () => {
       console.log(`${logPrefix} Component unmounting...`)
-      chrome.storage.onChanged.removeListener(handleStorageChange)
       chrome.runtime.onMessage.removeListener(handleMessage)
     }
   }, [])
 
+  // Add this state to track if user is at bottom
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
+
   useEffect(() => {
+    // Function to check if user is near bottom
+    const isNearBottom = () => {
+      if (chatContainerRef.current) {
+        const container = chatContainerRef.current
+        const threshold = 100 // pixels from bottom
+        return container.scrollHeight - container.scrollTop - container.clientHeight <= threshold
+      }
+      return true
+    }
+
     // Function to scroll to bottom
     const scrollToBottom = () => {
+      if (!shouldAutoScroll) return
+
       // Handle scroll for output
       if (outputRef.current) {
         outputRef.current.scrollTop = outputRef.current.scrollHeight
@@ -206,25 +212,39 @@ export const SidePanel: React.FC = () => {
       }
     }
 
-    // Scroll when messages change
-    scrollToBottom()
+    // Update shouldAutoScroll when user scrolls
+    const handleScroll = () => {
+      setShouldAutoScroll(isNearBottom())
+    }
+
+    // Add scroll event listener
+    const container = chatContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', handleScroll)
+    }
+
+    // Scroll when messages change only if we should auto-scroll
+    if (shouldAutoScroll) {
+      scrollToBottom()
+    }
 
     // Add event listener for when side panel becomes visible
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && shouldAutoScroll) {
         scrollToBottom()
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Scroll after a short delay to ensure content is rendered
-    setTimeout(scrollToBottom, 100)
-
+    // Cleanup
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (container) {
+        container.removeEventListener('scroll', handleScroll)
+      }
     }
-  }, [chatHistory, aiMessages]) // Watch both chatHistory and aiMessages
+  }, [chatHistory, aiMessages, shouldAutoScroll]) // Watch shouldAutoScroll state too
 
   const loadChatHistory = () => {
     chrome.storage.local.get(['chatHistory'], (result) => {
@@ -321,7 +341,7 @@ export const SidePanel: React.FC = () => {
     const loadStoredMessages = () => {
       chrome.storage.local.get('aiMessages').then((result) => {
         if (result.aiMessages) {
-          console.log(`${logPrefix} Loading ${result.aiMessages.length} messages from storage`)
+          // console.log(`${logPrefix} Loading ${result.aiMessages.length} messages from storage`)
           setMessages(result.aiMessages)
         }
       })
@@ -386,9 +406,9 @@ export const SidePanel: React.FC = () => {
   useEffect(() => {
     if (aiMessages.length > 0) {
       chrome.storage.local.set({ aiMessages }).then(() => {
-        console.log(`${logPrefix} Saved ${aiMessages.length} messages to storage`, {
-          lastMessage: aiMessages[aiMessages.length - 1],
-        })
+        // console.log(`${logPrefix} Saved ${aiMessages.length} messages to storage`, {
+        //   lastMessage: aiMessages[aiMessages.length - 1],
+        // })
       })
     }
   }, [aiMessages])
