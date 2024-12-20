@@ -71,8 +71,8 @@ async function extractMessages(count: number): Promise<string[]> {
 
       // Start from current position
       let currentScrollTop = scroller.scrollTop
-      const scrollIncrement = 2000 // Increased from 1500 to 2000
-      const scrollDelay = 600 // Increased from 500 to 600
+      const scrollIncrement = 2000
+      const scrollDelay = 600
 
       // Scroll up gradually
       while (currentScrollTop > 0) {

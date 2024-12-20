@@ -7,10 +7,12 @@ import { useChat } from 'ai/react'
 // Production API endpoint: https://discord-ai-orcin.vercel.app/api/chat
 
 // Define a type for our chat messages
-type ChatMessage = {
-  role: 'user' | 'assistant'
+type Message = {
+  id: string
+  role: 'user' | 'assistant' | 'system' | 'data'
   content: string
-  isExtracted?: boolean // New property to indicate extracted messages
+  isExtracted?: boolean
+  messageCount?: number
 }
 
 // Add near the top, after imports
@@ -154,7 +156,7 @@ export const SidePanel: React.FC = () => {
   }
 
   // console.log('Side panel component mounted')
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [chatHistory, setChatHistory] = useState<Message[]>([])
   const outputRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
@@ -308,27 +310,57 @@ export const SidePanel: React.FC = () => {
     setIsModalOpen(false)
   }
 
-  // Update processReceivedMessages to include more logging
+  // Add new state for collapsed messages
+  const [collapsedMessages, setCollapsedMessages] = useState<Set<string>>(new Set())
+
+  // Add toggle function
+  const toggleMessageCollapse = (messageId: string) => {
+    setCollapsedMessages((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId)
+      } else {
+        newSet.add(messageId)
+      }
+      return newSet
+    })
+  }
+
+  // Add state for custom instructions
+  const [customInstructions, setCustomInstructions] = useState<string>('')
+
+  // Update processReceivedMessages to use custom instructions if provided
   const processReceivedMessages = (messages: string[]) => {
-    // console.log(`${logPrefix} Processing ${messages.length} messages`)
-    // console.log(`${logPrefix} First message preview:`, messages[0]?.substring(0, 100))
-    // console.log(
-    //   `${logPrefix} Last message preview:`,
-    //   messages[messages.length - 1]?.substring(0, 100),
-    // )
+    const formattedMessages = messages.map((msg) => {
+      const lines = msg.split('\n')
+      if (lines.length >= 2) {
+        return `<span class="message-header">${lines[0]}</span>${lines.slice(1).join('\n')}`
+      }
+      return msg
+    })
 
-    const messagesText = messages.join('\n')
-    // console.log(`${logPrefix} Combined messages length:`, messagesText.length)
+    const messagesText = formattedMessages.join('\n')
+    const messageId = Date.now().toString()
 
-    // Log the message being sent to AI
+    // Use custom instructions if provided, otherwise use default
+    const instructionText = customInstructions.trim()
+      ? customInstructions.trim()
+      : 'Please analyze these messages and be ready to answer questions about them.'
+
     const aiMessage = {
       role: 'user' as const,
-      content: `I have extracted ${messages.length} messages from a Discord chat. Please analyze these messages and be ready to answer questions about them. Here are the messages:\n\n${messagesText}`,
-      id: Date.now().toString(),
+      content: `I have extracted ${messages.length} messages from a Discord chat. ${instructionText} Here are the messages:\n\n${messagesText}`,
+      id: messageId,
+      isExtracted: true,
+      messageCount: messages.length,
     }
     console.log(`${logPrefix} Sending message to AI:`, aiMessage)
 
+    setCollapsedMessages((prev) => new Set(prev).add(messageId))
     append(aiMessage)
+
+    // Reset custom instructions after sending
+    setCustomInstructions('')
   }
 
   const handleContactClick = () => {
@@ -493,9 +525,30 @@ export const SidePanel: React.FC = () => {
           <div className="chat-container" ref={chatContainerRef}>
             <div className="messages" ref={outputRef}>
               {aiMessages.length > 0 ? (
-                aiMessages.map((message) => (
-                  <div key={message.id} className={`message ${message.role}`}>
-                    <pre>{message.content}</pre>
+                aiMessages.map((message: Message) => (
+                  <div
+                    key={message.id}
+                    className={`message ${message.role} ${message.isExtracted ? 'extracted' : ''}`}
+                    onClick={() =>
+                      message.isExtracted ? toggleMessageCollapse(message.id) : undefined
+                    }
+                    style={{ cursor: message.isExtracted ? 'pointer' : 'default' }}
+                  >
+                    {message.isExtracted ? (
+                      <>
+                        <div className="extracted-header">
+                          {`${message.messageCount} Messages Extracted`}
+                          <span className="collapse-indicator">
+                            {collapsedMessages.has(message.id) ? '▼' : '▲'}
+                          </span>
+                        </div>
+                        {!collapsedMessages.has(message.id) && (
+                          <pre dangerouslySetInnerHTML={{ __html: message.content }} />
+                        )}
+                      </>
+                    ) : (
+                      <pre dangerouslySetInnerHTML={{ __html: message.content }} />
+                    )}
                   </div>
                 ))
               ) : (
@@ -526,17 +579,46 @@ export const SidePanel: React.FC = () => {
           {isModalOpen && (
             <div className="modal">
               <div className="modal-content">
-                <h2>Research Setup</h2>
-                <p>How many messages would you like to upload to AI?</p>
-                <input
-                  type="number"
-                  value={messageCount}
-                  onChange={(e) => setMessageCount(Number(e.target.value))}
-                  min="1"
-                  placeholder="Enter number of messages"
-                />
-                <button onClick={handleModalSubmit}>Submit</button>
-                <button onClick={() => setIsModalOpen(false)}>Cancel</button>
+                <h2>Research</h2>
+                <div className="modal-section number-input">
+                  <label>Number of messages to analyze</label>
+                  <input
+                    type="number"
+                    value={messageCount || ''} // Use empty string when value is 0
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Only update if the value is empty or a positive number
+                      if (value === '' || parseInt(value) > 0) {
+                        setMessageCount(value === '' ? 0 : parseInt(value))
+                      }
+                    }}
+                    min="1"
+                    placeholder="1"
+                  />
+                </div>
+                <div className="modal-section textarea-input">
+                  <label>Custom Instructions (Optional)</label>
+                  <textarea
+                    value={customInstructions}
+                    onChange={(e) => setCustomInstructions(e.target.value)}
+                    placeholder="Please analyze these messages and be ready to answer questions about them."
+                    rows={4}
+                  />
+                </div>
+                <div className="modal-buttons">
+                  <button onClick={handleModalSubmit} disabled={!messageCount || messageCount < 1}>
+                    Submit
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsModalOpen(false)
+                      setCustomInstructions('')
+                      setMessageCount(1) // Reset to 1 instead of 0
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           )}
