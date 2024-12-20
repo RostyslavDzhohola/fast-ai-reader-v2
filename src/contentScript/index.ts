@@ -1,8 +1,5 @@
 console.info('contentScript is running')
 
-// TODO: fix a bug in scrolling feature. When scanning more than 200 msgs, it doens't scrape the all the messages, some get lost.
-
-// TODO: reduce the scroling speed
 // Notify background script that content script is ready
 chrome.runtime.sendMessage({ action: 'contentScriptReady' })
 

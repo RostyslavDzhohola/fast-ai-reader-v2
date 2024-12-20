@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import './SidePanel.css'
 import { useChat } from 'ai/react'
+import { isGuildRestricted } from '../config/restrictions'
 
 // TODO: Replace the API key with the fetch request to my API backend
 // Development API endpoint: https://localhost:3000/api/chat
@@ -64,7 +65,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'http://localhost:3000/api/chat', // TODO: change to production endpoint
+    api: 'https://discord-ai-orcin.vercel.app/api/chat', // TODO: change to production endpoint
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
@@ -482,7 +483,10 @@ export const SidePanel: React.FC = () => {
     const checkCurrentUrl = async () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
       if (tab?.url) {
-        const isBlocked = tab.url.includes('discord.com/channels/1003977793845084200')
+        // Extract guild ID from Discord URL
+        const guildMatch = tab.url.match(/discord\.com\/channels\/(\d+)/)
+        const guildId = guildMatch ? guildMatch[1] : null
+        const isBlocked = guildId ? isGuildRestricted(guildId) : false
         setIsBlockedGuild(isBlocked)
       }
     }
@@ -502,6 +506,9 @@ export const SidePanel: React.FC = () => {
     }
   }, [])
 
+  // Add new state for help modal
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
+
   // Modify the main render to show blocked state
   return (
     <main className="side-panel">
@@ -518,6 +525,9 @@ export const SidePanel: React.FC = () => {
               Research
             </button>
             <div style={{ flexGrow: 1 }}></div>
+            <button onClick={() => setIsHelpModalOpen(true)} className="help-icon">
+              ?
+            </button>
             <button onClick={handleContactClick} className="contact-button">
               Contact
             </button>
@@ -617,6 +627,40 @@ export const SidePanel: React.FC = () => {
                     }}
                   >
                     Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Help Modal */}
+          {isHelpModalOpen && (
+            <div className="modal" onClick={() => setIsHelpModalOpen(false)}>
+              <div className="modal-content help-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2>Important Notice for Moderators</h2>
+                  <button className="close-button" onClick={() => setIsHelpModalOpen(false)}>
+                    ×
+                  </button>
+                </div>
+                <div className="modal-body">
+                  <p>
+                    If you don't want this tool to be used on your Discord server, please contact us
+                    and we will remove access of this extension from your server.
+                  </p>
+                  <button
+                    className="contact-button-primary"
+                    onClick={() => {
+                      const emailSubject = encodeURIComponent(
+                        'Please remove my Discord server from Fast AI Reader',
+                      )
+                      const emailBody = encodeURIComponent(
+                        'Please specify your Discord server URL here:\n\n',
+                      )
+                      window.location.href = `mailto:rostyslav.dzhohola@pm.me?subject=${emailSubject}&body=${emailBody}`
+                    }}
+                  >
+                    Contact Us
                   </button>
                 </div>
               </div>
