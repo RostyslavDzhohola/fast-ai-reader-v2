@@ -16,6 +16,18 @@ type ChatMessage = {
 // Add near the top, after imports
 const logPrefix = '[SidePanel]'
 
+// Add this component for blocked guild message in side panel
+const BlockedGuildView = () => {
+  return (
+    <div className="blocked-guild-container">
+      <div className="blocked-guild-content">
+        <h2>Access Restricted</h2>
+        <p>This Discord server has been restricted from using the AI Assistant extension.</p>
+      </div>
+    </div>
+  )
+}
+
 export const SidePanel: React.FC = () => {
   const [authToken, setAuthToken] = useState<string>('')
 
@@ -50,7 +62,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'https://discord-ai-orcin.vercel.app/api/chat', // TODO: change to production endpoint
+    api: 'http://localhost:3000/api/chat', // TODO: change to production endpoint
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
@@ -413,9 +425,57 @@ export const SidePanel: React.FC = () => {
     }
   }, [aiMessages])
 
+  // TODO: Add jump to bottom button whenever I am scrolling up.
+  // TODO: Add loading messages icon while it is scanning the messages on the discord channel.
+  // TODO: Move the summary of the messages how many were extracted and their dates at the bottom of the message.
+  // TODO: The scanned messages put them in the drop down menu so they don't take as much space since it's just for the user not relevant. But it needs to be stored for the future interaction with AI.
+  // TODO: make the loading of the stream of the chat reply smoother
+  // TODO: add button for choosing which OpenAI model to use.
+
+  // Add URL change listener
+  const [isBlockedGuild, setIsBlockedGuild] = useState<boolean>(false)
+
+  useEffect(() => {
+    const handleUrlChange = (message: any) => {
+      if (message.action === 'URL_CHANGED') {
+        console.log(`${logPrefix} URL changed:`, message)
+        setIsBlockedGuild(message.isBlocked)
+      }
+    }
+
+    // Add message listeners for both runtime and tabs
+    chrome.runtime.onMessage.addListener(handleUrlChange)
+
+    // Check current URL on mount and set up interval to check periodically
+    const checkCurrentUrl = async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (tab?.url) {
+        const isBlocked = tab.url.includes('discord.com/channels/1003977793845084200')
+        setIsBlockedGuild(isBlocked)
+      }
+    }
+
+    // Check immediately on mount
+    checkCurrentUrl()
+
+    // Set up periodic check every second
+    const intervalId = setInterval(checkCurrentUrl, 1000)
+
+    // Request initial state from background
+    chrome.runtime.sendMessage({ action: 'sidePanelReady' })
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleUrlChange)
+      clearInterval(intervalId)
+    }
+  }, [])
+
+  // Modify the main render to show blocked state
   return (
     <main className="side-panel">
-      {isSignedIn ? (
+      {isBlockedGuild ? (
+        <BlockedGuildView />
+      ) : isSignedIn ? (
         // Your existing chat UI
         <>
           <div className="button-container">

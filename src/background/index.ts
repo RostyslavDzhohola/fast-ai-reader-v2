@@ -30,14 +30,77 @@ function isDiscordURL(url: string | undefined): boolean {
   return url?.includes('discord.com') || false
 }
 
+// Add this function after the isDiscordURL function
+function isBlockedGuild(url: string | undefined): boolean {
+  return url?.includes('discord.com/channels/1003977793845084200') || false
+}
+
+// Add this function to broadcast messages to all side panels
+async function broadcastToSidePanels(message: any) {
+  // Get all tabs
+  const tabs = await chrome.tabs.query({})
+
+  // Send message to all tabs
+  for (const tab of tabs) {
+    if (tab.id) {
+      chrome.runtime.sendMessage(message).catch(() => {
+        // Ignore errors for tabs that can't receive messages
+      })
+
+      // Also try sending via tabs API
+      chrome.tabs.sendMessage(tab.id, message).catch(() => {
+        // Ignore errors for tabs that can't receive messages
+      })
+    }
+  }
+}
+
 // Add a tab update listener to keep track of URL changes
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.url) {
     isCurrentURLDiscord = isDiscordURL(changeInfo.url)
+    const isBlocked = isBlockedGuild(changeInfo.url)
+    authStatus = await checkAuthStatus()
+
     console.log(`${logPrefix} URL updated:`, {
       url: changeInfo.url,
       isDiscord: isCurrentURLDiscord,
+      isBlocked,
+      authStatus,
     })
+
+    // Handle side panel state on URL change
+    try {
+      if (isCurrentURLDiscord && authStatus) {
+        // Keep side panel enabled for all Discord pages
+        await chrome.sidePanel.setOptions({
+          tabId,
+          path: '/sidepanel.html',
+          enabled: true,
+        })
+
+        // Broadcast URL change to all side panels
+        await broadcastToSidePanels({
+          action: 'URL_CHANGED',
+          isBlocked,
+          url: changeInfo.url,
+        })
+      } else {
+        // For non-Discord pages
+        await chrome.sidePanel.setOptions({
+          tabId,
+          enabled: false,
+        })
+
+        // Set up popup for non-Discord pages
+        await chrome.action.setPopup({
+          tabId,
+          popup: '/popup.html',
+        })
+      }
+    } catch (error) {
+      console.error('Error updating side panel state:', error)
+    }
   }
 })
 
@@ -50,11 +113,13 @@ chrome.action.onClicked.addListener(async (tab) => {
 
   // Update isCurrentURLDiscord based on the current tab's URL
   isCurrentURLDiscord = isDiscordURL(tab.url)
+  const isBlocked = isBlockedGuild(tab.url)
   authStatus = await checkAuthStatus()
 
   console.log('🎯 Click Handler - URL Check:', {
     url: tab.url,
     isDiscord: isCurrentURLDiscord,
+    isBlocked,
     timestamp: new Date().toISOString(),
     signedInStatus: authStatus,
     serviceWorkerReady: isServiceWorkerReady,
@@ -65,7 +130,7 @@ chrome.action.onClicked.addListener(async (tab) => {
   try {
     console.log('🔍 Auth Status:', authStatus)
 
-    // For Discord pages
+    // For Discord pages (both blocked and non-blocked)
     if (isCurrentURLDiscord && authStatus) {
       console.log('🔍 Setting up Side Panel for Discord page')
 
@@ -92,10 +157,11 @@ chrome.action.onClicked.addListener(async (tab) => {
       // For non-Discord pages or unauthenticated
       console.log('🔍 Sign in or Switch to Discord Popup', {
         isDiscord: isCurrentURLDiscord,
+        isBlocked,
         authStatus,
       })
 
-      // Disable side panel first
+      // Disable side panel
       await chrome.sidePanel.setOptions({
         tabId: tab.id,
         enabled: false,
@@ -122,7 +188,25 @@ chrome.action.onClicked.addListener(async (tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'sidePanelReady') {
     console.log('🔍 Side panel reported ready')
-    sendResponse({ success: true })
+
+    // Get current tab and check URL
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+      if (tab?.url) {
+        const isBlocked = isBlockedGuild(tab.url)
+        // Send current state to the side panel
+        chrome.runtime
+          .sendMessage({
+            action: 'URL_CHANGED',
+            isBlocked,
+            url: tab.url,
+          })
+          .catch(() => {
+            // Ignore errors if side panel is not ready
+          })
+      }
+
+      sendResponse({ success: true })
+    })
   }
   return true
 })
@@ -214,12 +298,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })
     return true
   }
+
+  if (request.action === 'extractMessages') {
+    console.log('Background script received extract request:', request)
+
+    // Get the active tab and forward the message to content script
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      const activeTab = tabs[0]
+      if (!activeTab?.id) {
+        sendResponse({ error: 'No active tab found' })
+        return
+      }
+
+      try {
+        // Forward the message to content script
+        const response = await chrome.tabs.sendMessage(activeTab.id, request)
+        console.log('Received response from content script:', response)
+        sendResponse(response)
+      } catch (error) {
+        console.error('Error in message relay:', error)
+        sendResponse({ error: 'Failed to communicate with Discord tab' })
+      }
+    })
+    return true
+  }
+
+  return true
 })
 
 interface TabInfo {
   isDiscordPage: boolean
   hasDiscordTab: boolean
   activeDiscordTabId: number | null
+  isBlockedGuild: boolean
 }
 
 // Add this function to handle tab info
@@ -228,12 +339,14 @@ async function getTabInfo(): Promise<TabInfo> {
   const allTabs = await chrome.tabs.query({ currentWindow: true })
 
   const isCurrentTabDiscord = currentTab.url?.includes('discord.com') || false
+  const isGuildBlocked = isBlockedGuild(currentTab.url)
   const discordTab = allTabs.find((tab) => tab.url?.includes('discord.com'))
 
   return {
     isDiscordPage: isCurrentTabDiscord,
     hasDiscordTab: !!discordTab,
     activeDiscordTabId: discordTab?.id || null,
+    isBlockedGuild: isGuildBlocked,
   }
 }
 
@@ -335,31 +448,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       tabId: sender.tab?.id,
       frameId: sender.frameId,
     })
-  }
-})
-
-// Add this message handler in background/index.ts
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  // ... existing listeners ...
-
-  if (message.action === 'extractMessages') {
-    console.log('Background script received extract request:', message)
-
-    try {
-      // Get the active tab
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      if (!activeTab?.id) {
-        throw new Error('No active tab found')
-      }
-
-      // Forward the message to content script
-      const response = await chrome.tabs.sendMessage(activeTab.id, message)
-      console.log('Received response from content script:', response)
-      sendResponse(response)
-    } catch (error) {
-      console.error('Error in message relay:', error)
-      sendResponse({ error: 'Failed to communicate with Discord tab' })
-    }
-    return true
   }
 })

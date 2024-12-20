@@ -29,6 +29,7 @@ export default defineManifest({
   content_scripts: [
     {
       matches: ['*://*.discord.com/*'],
+      exclude_matches: ['*://*.discord.com/channels/1003977793845084200/*'],
       js: ['src/contentScript/index.ts'],
       run_at: 'document_end',
     },

@@ -1,6 +1,42 @@
 import React, { useState, useEffect } from 'react'
 import './Popup.css'
 
+interface TabInfo {
+  isDiscordPage: boolean
+  hasDiscordTab: boolean
+  activeDiscordTabId: number | null
+  isBlockedGuild?: boolean
+}
+
+const BlockedGuildView = () => {
+  return (
+    <div className="blocked-guild-container">
+      <div className="blocked-guild-content">
+        <h2>Access Restricted</h2>
+        <p>This Discord server has been restricted from using the AI Assistant extension.</p>
+      </div>
+    </div>
+  )
+}
+
+const SignedOutView = () => {
+  const handleOptionsClick = () => {
+    chrome.runtime.openOptionsPage()
+  }
+
+  return (
+    <div className="signed-out-container">
+      <div className="signed-out-content">
+        <h2>Not Signed In</h2>
+        <p>You need to be signed in to use the Discord AI Assistant.</p>
+        <button onClick={handleOptionsClick} className="sign-in-button">
+          Go to Sign In
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export const Popup: React.FC = () => {
   const [isDiscordPage, setIsDiscordPage] = useState(false)
   const [isSignedIn, setIsSignedIn] = useState(false)
@@ -9,6 +45,7 @@ export const Popup: React.FC = () => {
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [registrationRequired, setRegistrationRequired] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isBlockedGuild, setIsBlockedGuild] = useState<boolean>(false)
 
   useEffect(() => {
     const initializePopup = async () => {
@@ -25,7 +62,8 @@ export const Popup: React.FC = () => {
           throw new Error('Failed to initialize popup')
         }
 
-        const { isDiscordPage, hasDiscordTab, activeDiscordTabId } = tabInfoResponse.data
+        const { isDiscordPage, hasDiscordTab, activeDiscordTabId, isBlockedGuild } =
+          tabInfoResponse.data
         const { isSignedIn, registrationRequired } = authStateResponse.data
 
         // Update all states at once
@@ -33,12 +71,13 @@ export const Popup: React.FC = () => {
         setHasDiscordTab(hasDiscordTab)
         setIsSignedIn(isSignedIn)
         setRegistrationRequired(registrationRequired)
+        setIsBlockedGuild(isBlockedGuild || false)
         if (activeDiscordTabId) {
           setActiveDiscordTabId(activeDiscordTabId)
         }
 
         // Handle side panel setup if conditions are met
-        if (isSignedIn && isDiscordPage) {
+        if (isSignedIn && isDiscordPage && !isBlockedGuild) {
           console.log('🎯 Setting up side panel')
           const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true })
           if (currentTab.id) {
@@ -48,7 +87,6 @@ export const Popup: React.FC = () => {
               enabled: true,
             })
             console.log('🎯 Side panel setup complete')
-            // window.close()
           }
         }
       } catch (error) {
@@ -160,14 +198,22 @@ export const Popup: React.FC = () => {
   }
 
   return (
-    <div className={`popup-container ${isLoading ? 'loading' : ''}`}>
-      <div className="success-container">
-        <h2>Not on Discord</h2>
-        <p>{hasDiscordTab ? 'Switch to Discord tab' : 'Open Discord'} to use the extension.</p>
-        <button onClick={handleDiscordNavigation} className="discord-button">
-          {hasDiscordTab ? 'Switch to Discord Tab' : 'Go to Discord'}
-        </button>
-      </div>
+    <div className="popup-container">
+      {isBlockedGuild ? (
+        <BlockedGuildView />
+      ) : !isSignedIn ? (
+        <SignedOutView />
+      ) : (
+        <div className={`popup-container ${isLoading ? 'loading' : ''}`}>
+          <div className="success-container">
+            <h2>Not on Discord</h2>
+            <p>{hasDiscordTab ? 'Switch to Discord tab' : 'Open Discord'} to use the extension.</p>
+            <button onClick={handleDiscordNavigation} className="discord-button">
+              {hasDiscordTab ? 'Switch to Discord Tab' : 'Go to Discord'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

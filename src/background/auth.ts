@@ -168,7 +168,7 @@ async function authenticateWithBackend(accessToken: string): Promise<AuthRespons
 
   // TODO: Change this to the production URL
   try {
-    const response = await fetch('https://discord-ai-orcin.vercel.app/api/authenticate', {
+    const response = await fetch('http://localhost:3000/api/authenticate', {
       // TODO: change to production endpoint
       method: 'POST',
       headers: {

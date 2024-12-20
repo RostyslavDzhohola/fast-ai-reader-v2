@@ -228,3 +228,26 @@ body {
   min-height: 160px;
   background: #36393f;
 }
+
+.blocked-guild-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 20px;
+}
+
+.blocked-guild-content {
+  text-align: center;
+  max-width: 300px;
+}
+
+.blocked-guild-content h2 {
+  margin-bottom: 16px;
+  color: #e91e63;
+}
+
+.blocked-guild-content p {
+  margin-bottom: 24px;
+  color: #666;
+}
