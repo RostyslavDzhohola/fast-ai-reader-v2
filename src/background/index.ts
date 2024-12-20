@@ -1,4 +1,5 @@
 import { initializeGoogleAuth, handleSignOut, refreshTokenIfNeeded, checkAuthStatus } from './auth'
+import { isGuildRestricted } from '../config/restrictions'
 
 // TODO: Fix the double click issue required for opening side panels
 
@@ -30,9 +31,11 @@ function isDiscordURL(url: string | undefined): boolean {
   return url?.includes('discord.com') || false
 }
 
-// Add this function after the isDiscordURL function
+// Update this function to use isGuildRestricted
 function isBlockedGuild(url: string | undefined): boolean {
-  return url?.includes('discord.com/channels/1003977793845084200') || false
+  if (!url) return false
+  const match = url.match(/discord\.com\/channels\/(\d+)/)
+  return match ? isGuildRestricted(match[1]) : false
 }
 
 // Add this function to broadcast messages to all side panels

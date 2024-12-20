@@ -1,5 +1,6 @@
 import { defineManifest } from '@crxjs/vite-plugin'
 import packageData from '../package.json'
+import { RESTRICTED_GUILDS } from './config/restrictions'
 
 //@ts-ignore
 const isDev = process.env.NODE_ENV == 'development'
@@ -29,7 +30,7 @@ export default defineManifest({
   content_scripts: [
     {
       matches: ['*://*.discord.com/*'],
-      exclude_matches: ['*://*.discord.com/channels/1003977793845084200/*'],
+      exclude_matches: RESTRICTED_GUILDS.MANIFEST_PATTERNS,
       js: ['src/contentScript/index.ts'],
       run_at: 'document_end',
     },
