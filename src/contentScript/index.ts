@@ -71,8 +71,8 @@ async function extractMessages(count: number): Promise<string[]> {
 
       // Start from current position
       let currentScrollTop = scroller.scrollTop
-      const scrollIncrement = 1500 // Increased from 1500 to 2000
-      const scrollDelay = 500 // Increased from 500 to 600
+      const scrollIncrement = 2000 // Increased from 1500 to 2000
+      const scrollDelay = 600 // Increased from 500 to 600
 
       // Scroll up gradually
       while (currentScrollTop > 0) {
@@ -121,6 +121,7 @@ async function extractMessages(count: number): Promise<string[]> {
 
   function extractMessages() {
     const messageGroups = document.querySelectorAll('[id^="chat-messages-"]')
+    const messagesArray: { timestamp: Date; message: string }[] = []
     let currentUsername = ''
     let currentTimestamp = ''
 
@@ -132,17 +133,33 @@ async function extractMessages(count: number): Promise<string[]> {
       if (usernameElement && timestampElement) {
         currentUsername = usernameElement.textContent?.trim() || 'Unknown User'
         currentTimestamp = timestampElement.textContent?.trim() || 'Unknown Time'
-      }
 
-      contentElements.forEach((contentElement) => {
-        const content = contentElement.textContent?.trim() || ''
-        if (content) {
-          const formattedMessage = `${currentUsername} | ${currentTimestamp}\n${content}\n`
-          if (!messages.includes(formattedMessage)) {
-            messages.push(formattedMessage)
+        // Parse the timestamp into a Date object
+        const date = timestampElement.getAttribute('datetime')
+        const parsedDate = date ? new Date(date) : new Date()
+
+        contentElements.forEach((contentElement) => {
+          const content = contentElement.textContent?.trim() || ''
+          if (content) {
+            const formattedMessage = `${currentUsername} | ${currentTimestamp}\n${content}\n`
+            messagesArray.push({
+              timestamp: parsedDate,
+              message: formattedMessage,
+            })
           }
-        }
-      })
+        })
+      }
+    })
+
+    // Sort messages by timestamp
+    messagesArray.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+
+    // Clear the messages array and add sorted messages
+    messages.length = 0
+    messagesArray.forEach(({ message }) => {
+      if (!messages.includes(message)) {
+        messages.push(message)
+      }
     })
   }
 
