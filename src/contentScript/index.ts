@@ -1,3 +1,5 @@
+console.log('%cContent Script Loaded', 'color: #00ff00; font-size: 20px; font-weight: bold;')
+
 console.info('contentScript is running')
 
 // Notify background script that content script is ready
@@ -216,5 +218,61 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ messages })
     })
   }
+
+  if (request.action === 'find_username') {
+    try {
+      console.log('%cSearching for username', 'color: #ff00ff; font-size: 16px;')
+
+      // Find the search container
+      const searchContainer = document.querySelector('div[class*="searchBar_a46bef"]')
+      if (!searchContainer) {
+        console.error('Search container not found')
+        return
+      }
+
+      // Find the DraftEditor content
+      const editorContent = searchContainer.querySelector('div[class*="DraftEditor-content"]')
+      if (!editorContent) {
+        console.error('Editor content not found')
+        return
+      }
+
+      // Clear existing content first
+      const existingText = editorContent.querySelector('span[data-text="true"]')
+      if (existingText) {
+        existingText.textContent = ''
+      }
+
+      // Create and dispatch a paste event with the search text
+      const clipboardData = new DataTransfer()
+      clipboardData.setData('text/plain', `from: ${request.username}`)
+
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      })
+
+      editorContent.dispatchEvent(pasteEvent)
+
+      // Trigger Enter key after a short delay to initiate search
+      setTimeout(() => {
+        editorContent.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+          }),
+        )
+      }, 100)
+
+      console.log('Successfully set search text:', request.username)
+    } catch (error) {
+      console.error('%cError in username search:', 'color: red; font-size: 16px;', error)
+    }
+  }
+
   return true
 })

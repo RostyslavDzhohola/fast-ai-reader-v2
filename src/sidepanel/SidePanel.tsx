@@ -25,6 +25,22 @@ type Message = {
 // Add near the top, after imports
 const logPrefix = '[SidePanel]'
 
+// Rename to handleSearchUsernameClick and update message format
+const handleSearchUsernameClick = (text: string) => {
+  console.log(`${logPrefix} Searching for username:`, text)
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id) {
+      chrome.tabs.sendMessage(tabs[0].id, {
+        action: 'find_username',
+        username: text,
+      })
+    }
+  })
+}
+
+// Track if text is both bold and italic
+let isBoldAndItalic = false
+
 // Add this component for blocked guild message in side panel
 const BlockedGuildView = () => {
   return (
@@ -538,7 +554,21 @@ export const SidePanel: React.FC = () => {
                         )}
                       </>
                     ) : (
-                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          strong: ({ node, children }) => <strong>{children}</strong>,
+                          em: ({ node, children }) => (
+                            <em
+                              onClick={() => handleSearchUsernameClick(String(children))}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {children}
+                            </em>
+                          ),
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
                     )}
                   </div>
                 ))
