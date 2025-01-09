@@ -2,15 +2,21 @@ import React, { useState, useRef, useEffect } from 'react'
 import './SidePanel.css'
 import { useChat } from 'ai/react'
 import { isGuildRestricted } from '../config/restrictions'
+import ReactMarkdown from 'react-markdown'
 
 // TODO: Replace the API key with the fetch request to my API backend
+
+// TODO: Bug: if i haven't signed in seven days and i open the chrome extension it doesn't prompt me to sign back again and doesn't notify me that i haven't been signed in it just tries to make requests but it cannot because it doesn't have the token to perform sign in so i have to fix the sign-in pop-up or shoving sign-in Basically I need to add error handling for making requests in case the sign-in did not showcase again. If I get error, it has to check if I'm signed in. If I'm not signed in, it has to change that state in order to show me a sign-in pop-up
+
+// TODO: The chat generation is not smooth. It's too buggy.
 // Development API endpoint: https://localhost:3000/api/chat
 // Production API endpoint: https://discord-ai-orcin.vercel.app/api/chat
+// Main API endpoint: https://www.fastaireader.com/api/chat
 
 // Define a type for our chat messages
 type Message = {
   id: string
-  role: 'user' | 'assistant' | 'system' | 'data'
+  role: 'user' | 'assistant' | 'system' | 'data' | 'function' | 'tool'
   content: string
   isExtracted?: boolean
   messageCount?: number
@@ -65,7 +71,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'https://discord-ai-orcin.vercel.app/api/chat', // TODO: change to production endpoint
+    api: 'http://localhost:3000/api/chat', // For local testing, don't forget to switch to, from HTTPS to HTTP.
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
@@ -73,10 +79,7 @@ export const SidePanel: React.FC = () => {
     credentials: 'same-origin',
     initialMessages: [],
     onResponse: (response: Response) => {
-      // Clone the response once at the beginning
-      const responseClone = response.clone()
-
-      // Log request and response details that don't require body reading
+      // Log request details that don't require body reading
       console.log(`${logPrefix} Request details:`, {
         url: response.url,
         method: response.type,
@@ -84,27 +87,6 @@ export const SidePanel: React.FC = () => {
         statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries()),
       })
-
-      // Try to parse and log the response body
-      responseClone
-        .json()
-        .then((data) => {
-          // console.log(`${logPrefix} Response body:`, {
-          //   data,
-          //   type: typeof data,
-          //   keys: Object.keys(data),
-          // })
-        })
-        .catch((err) => {
-          console.error(`${logPrefix} Error parsing response body:`, err)
-          // Use another clone for text fallback
-          response
-            .clone()
-            .text()
-            .then((text) => {
-              console.log(`${logPrefix} Raw response body:`, text)
-            })
-        })
     },
     onError: (error) => {
       console.error(`${logPrefix} Chat error:`, {
@@ -214,7 +196,7 @@ export const SidePanel: React.FC = () => {
 
     // Function to scroll to bottom
     const scrollToBottom = () => {
-      if (!shouldAutoScroll) return
+      if (!shouldAutoScroll || isLoading) return
 
       // Handle scroll for output
       if (outputRef.current) {
@@ -461,7 +443,6 @@ export const SidePanel: React.FC = () => {
   // TODO: Add jump to bottom button whenever I am scrolling up.
   // TODO: Add loading messages icon while it is scanning the messages on the discord channel.
   // TODO: Move the summary of the messages how many were extracted and their dates at the bottom of the message.
-  // TODO: The scanned messages put them in the drop down menu so they don't take as much space since it's just for the user not relevant. But it needs to be stored for the future interaction with AI.
   // TODO: make the loading of the stream of the chat reply smoother
   // TODO: add button for choosing which OpenAI model to use.
 
@@ -557,7 +538,7 @@ export const SidePanel: React.FC = () => {
                         )}
                       </>
                     ) : (
-                      <pre dangerouslySetInnerHTML={{ __html: message.content }} />
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
                     )}
                   </div>
                 ))

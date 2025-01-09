@@ -46,6 +46,7 @@ export default defineManifest({
     'https://discord.com/*',
     'http://localhost:3000/',
     'https://discord-ai-orcin.vercel.app/',
+    'https://www.fastaireader.com/',
   ],
   oauth2: {
     client_id: '1019983268042-5c40lbqolpkktiq16g3gaermeb2d86b9.apps.googleusercontent.com',

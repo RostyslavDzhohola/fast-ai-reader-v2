@@ -598,3 +598,67 @@ body {
 .contact-button-primary:hover {
   background-color: #4752c4;
 }
+
+/* Markdown styles */
+.message p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  font-size: inherit;
+  line-height: inherit;
+  word-spacing: 0.1em; /* Add 10% spacing between words */
+}
+
+.message strong {
+  font-weight: 920; /* Increased from 800 to 920 (another 15% bolder) */
+}
+
+.message em {
+  font-style: italic;
+}
+
+/* Only apply hover effect when text is both bold and italic */
+.message em strong,
+.message strong em {
+  transition: text-decoration 0.2s ease;
+}
+
+.message em strong:hover,
+.message strong em:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.message code {
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.message pre code {
+  display: block;
+  padding: 8px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+.message ul,
+.message ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.message ul li,
+.message ol li {
+  margin-bottom: 0.15em; /* Add 15% spacing between list items */
+}
+
+.message blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+}
