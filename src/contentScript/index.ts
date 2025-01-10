@@ -223,52 +223,79 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     try {
       console.log('%cSearching for username', 'color: #ff00ff; font-size: 16px;')
 
-      // Find the search container
-      const searchContainer = document.querySelector('div[class*="searchBar_a46bef"]')
-      if (!searchContainer) {
-        console.error('Search container not found')
-        return
-      }
+      // First attempt: Try to clear existing search
+      // Look for the 'X' button in the search bar to clear any existing search
+      const clearButton = document.querySelector('.iconContainer_effbe2')
+      if (clearButton) {
+        console.log('Found clear button, clicking it')
+        ;(clearButton as HTMLElement).click()
 
-      // Find the DraftEditor content
-      const editorContent = searchContainer.querySelector('div[class*="DraftEditor-content"]')
-      if (!editorContent) {
-        console.error('Editor content not found')
-        return
-      }
+        // Wait a bit for the clear animation to complete
+        setTimeout(() => {
+          // Find Discord's search bar and its DraftEditor (rich text input)
+          // DraftEditor is React's rich text editor that Discord uses
+          const editorContent = document.querySelector(
+            'div[class*="searchBar_a46bef"] div[class*="DraftEditor-content"]',
+          ) as HTMLElement
+          if (!editorContent) {
+            console.error('Editor content not found')
+            return
+          }
 
-      // Clear existing content first
-      const existingText = editorContent.querySelector('span[data-text="true"]')
-      if (existingText) {
-        existingText.textContent = ''
-      }
+          // Set focus to the editor so it's ready to receive input
+          // This shows the blinking cursor in the search field
+          editorContent.focus()
 
-      // Create and dispatch a paste event with the search text
-      const clipboardData = new DataTransfer()
-      clipboardData.setData('text/plain', `from: ${request.username}`)
+          // Create a clipboard event to simulate pasting text
+          // This works better than directly setting textContent
+          const clipboardData = new DataTransfer()
+          clipboardData.setData('text/plain', `from: ${request.username}`)
 
-      const pasteEvent = new ClipboardEvent('paste', {
-        bubbles: true,
-        cancelable: true,
-        clipboardData,
-      })
-
-      editorContent.dispatchEvent(pasteEvent)
-
-      // Trigger Enter key after a short delay to initiate search
-      setTimeout(() => {
-        editorContent.dispatchEvent(
-          new KeyboardEvent('keydown', {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
+          // Create and dispatch a paste event
+          // bubbles: true allows Discord to detect the change
+          const pasteEvent = new ClipboardEvent('paste', {
             bubbles: true,
-          }),
-        )
-      }, 100)
+            cancelable: true,
+            clipboardData,
+          })
 
-      console.log('Successfully set search text:', request.username)
+          // Trigger the paste event on the editor
+          editorContent.dispatchEvent(pasteEvent)
+
+          // Wait for Discord to process the search and show results
+          setTimeout(() => {
+            // First try to find and click the first result
+            // Discord shows results with this class when there's a direct match
+            const firstResult = document.querySelector('div[class*="content_b0286e"]')
+            if (firstResult) {
+              console.log('Found first result, clicking it')
+              ;(firstResult as HTMLElement).click()
+            } else {
+              // If no direct result, check for return button
+              const returnButton = document.querySelector('span[class*="key_c90023"]')
+              if (returnButton) {
+                console.log('Found return button, simulating Enter key')
+                editorContent.dispatchEvent(
+                  new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true,
+                  }),
+                )
+              } else {
+                console.error('Neither result nor return button found')
+              }
+            }
+          }, 100) // Give Discord time to show search results
+
+          console.log('Successfully set search text:', request.username)
+        }, 100)
+      } else {
+        console.log('No clear button found, proceeding with search')
+        // ... rest of the existing search code ...
+      }
     } catch (error) {
       console.error('%cError in username search:', 'color: red; font-size: 16px;', error)
     }
