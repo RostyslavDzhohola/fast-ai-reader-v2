@@ -22,3 +22,7 @@
 
 # secrets
 secrets.*.js
+
+# TypeScript
+*.d.ts
+*.d.ts.map

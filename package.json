@@ -1,7 +1,7 @@
 {
   "name": "fast-ai-reader-v2",
   "displayName": "Fast AI Reader (beta)",
-  "version": "0.0.71",
+  "version": "0.0.75",
   "author": "Rostyslav Dzhohola",
   "description": "Chrome extension for doing research inside your Discord channels.",
   "type": "module",
@@ -16,17 +16,16 @@
     "node": ">=14.18.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite build --watch",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "fmt": "prettier --write '**/*.{tsx,ts,json,css,scss,md}'",
     "zip": "npm run build && node src/zip.js"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^0.0.62",
-    "ai": "^3.4.9",
-    "fsevents": "^2.3.3",
-    "openai": "^4.63.0",
+    "@ai-sdk/openai": "1.1.9",
+    "ai": "4.1.0",
+    "esbuild": "^0.25.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.3"
@@ -37,10 +36,13 @@
     "@types/react": "^18.2.28",
     "@types/react-dom": "^18.2.13",
     "@vitejs/plugin-react": "^4.1.0",
-    "gulp": "^4.0.2",
+    "gulp": "^5.0.0",
     "gulp-zip": "^6.0.0",
     "prettier": "^3.0.3",
     "typescript": "^5.2.2",
     "vite": "^4.4.11"
+  },
+  "overrides": {
+    "fsevents": "2.3.3"
   }
 }

@@ -8,8 +8,9 @@ chrome.runtime.sendMessage({ action: 'contentScriptReady' })
 // Add this helper function at the top level
 async function scrollToBottom() {
   try {
+    // Updated selector to match Discord's current class names
     const scroller = document.querySelector(
-      'div[class*="scroller_e2e187"][class*="customTheme_"]',
+      'div[class*="scroller"][class*="customTheme"][class*="auto"]',
     ) as HTMLElement
 
     if (!scroller) {
@@ -34,8 +35,7 @@ async function scrollToBottom() {
 }
 
 // Function to extract messages from Discord
-async function extractMessages(count: number): Promise<string[]> {
-  console.log('Starting message extraction, requested count:', count)
+async function extractMessagesFromDiscord(count: number): Promise<string[]> {
   const messages: string[] = []
 
   // Get chat container with more detailed error checking
@@ -48,22 +48,17 @@ async function extractMessages(count: number): Promise<string[]> {
   // Try to find Discord's internal message list component
   async function triggerMessageLoad(): Promise<boolean> {
     try {
+      // Updated selector to match Discord's current class names
       const scroller = document.querySelector(
-        'div[class*="scroller_e2e187"][class*="customTheme_"]',
+        'div[class*="scroller"][class*="customTheme"][class*="auto"]',
       ) as HTMLElement
 
       if (!scroller) {
-        console.error('Could not find scroller element')
         return false
       }
 
       // Log initial state
       const initialMessages = document.querySelectorAll('[id^="chat-messages-"]')
-      console.log('Initial state:', {
-        messageCount: initialMessages.length,
-        scrollTop: scroller.scrollTop,
-        scrollHeight: scroller.scrollHeight,
-      })
 
       // Gradually scroll up in smaller increments
       scroller.style.scrollBehavior = 'auto'
@@ -87,23 +82,13 @@ async function extractMessages(count: number): Promise<string[]> {
 
         // Check if we loaded new messages
         const newMessageCount = document.querySelectorAll('[id^="chat-messages-"]').length
-        console.log('Scroll progress:', {
-          currentScrollTop,
-          messageCount: newMessageCount,
-          scrollHeight: scroller.scrollHeight,
-        })
 
         if (newMessageCount > initialMessages.length) {
-          console.log('Successfully loaded new messages:', {
-            before: initialMessages.length,
-            after: newMessageCount,
-          })
           return true
         }
 
         // Safety check - if we're at the top and no new messages, stop
         if (currentScrollTop === 0 && newMessageCount === initialMessages.length) {
-          console.log('Reached top without loading new messages')
           break
         }
       }
@@ -113,12 +98,11 @@ async function extractMessages(count: number): Promise<string[]> {
 
       return false
     } catch (error) {
-      console.error('Error in triggerMessageLoad:', error)
       return false
     }
   }
 
-  function extractMessages() {
+  function parseVisibleMessages() {
     const messageGroups = document.querySelectorAll('[id^="chat-messages-"]')
     const messagesArray: { timestamp: Date; message: string }[] = []
     let currentUsername = ''
@@ -162,42 +146,35 @@ async function extractMessages(count: number): Promise<string[]> {
     })
   }
 
-  // First extraction of currently visible messages
-  extractMessages()
+  // Main workflow
+  parseVisibleMessages()
 
   // Keep trying to load more messages until we have enough
   const maxAttempts = 20
   let attempts = 0
 
   while (messages.length < count && attempts < maxAttempts) {
-    console.log(`Current message count: ${messages.length}, Target: ${count}`)
-
     // Try to load more messages first
     const loaded = await triggerMessageLoad()
     if (!loaded) {
-      console.log('Failed to load more messages, waiting longer...')
-      // Wait longer between attempts
       await new Promise((resolve) => setTimeout(resolve, 2000))
       attempts++
 
       if (attempts >= maxAttempts) {
-        console.log('Max attempts reached, stopping')
         break
       }
       continue
     }
 
     // Extract messages after successful load
-    extractMessages()
+    parseVisibleMessages()
 
     // Add a delay between successful loads
     await new Promise((resolve) => setTimeout(resolve, 500))
     attempts++
   }
 
-  console.log(
-    `Extracted ${messages.length} messages out of ${count} requested after ${attempts} load attempts`,
-  )
+  // console.log(`Total messages extracted: ${messages.length}`)
 
   // Scroll back to bottom before returning
   await scrollToBottom()
@@ -210,7 +187,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Content script received message:', request)
 
   if (request.action === 'extractMessages') {
-    extractMessages(request.count).then((messages) => {
+    extractMessagesFromDiscord(request.count).then((messages) => {
       console.log('Successfully extracted messages:', {
         count: messages.length,
         sample: messages[0]?.substring(0, 100),
@@ -225,7 +202,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       // First attempt: Try to clear existing search
       // Look for the 'X' button in the search bar to clear any existing search
-      const clearButton = document.querySelector('.iconContainer_effbe2')
+      const clearButton = document.querySelector('.iconContainer_fea832')
       if (clearButton) {
         console.log('Found clear button, clicking it')
         ;(clearButton as HTMLElement).click()
@@ -235,7 +212,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // Find Discord's search bar and its DraftEditor (rich text input)
           // DraftEditor is React's rich text editor that Discord uses
           const editorContent = document.querySelector(
-            'div[class*="searchBar_a46bef"] div[class*="DraftEditor-content"]',
+            'div[class*="searchBar_"] div[class*="DraftEditor-content"]',
           ) as HTMLElement
           if (!editorContent) {
             console.error('Editor content not found')
@@ -272,7 +249,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               ;(firstResult as HTMLElement).click()
             } else {
               // If no direct result, check for return button
-              const returnButton = document.querySelector('span[class*="key_c90023"]')
+              const returnButton = document.querySelector('span[class*="key_"]')
               if (returnButton) {
                 console.log('Found return button, simulating Enter key')
                 editorContent.dispatchEvent(
@@ -288,7 +265,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 console.error('Neither result nor return button found')
               }
             }
-          }, 100) // Give Discord time to show search results
+          }, 201) // Give Discord time to show search results
 
           console.log('Successfully set search text:', request.username)
         }, 100)

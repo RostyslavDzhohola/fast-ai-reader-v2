@@ -10,7 +10,7 @@ import ReactMarkdown from 'react-markdown'
 
 // TODO: The chat generation is not smooth. It's too buggy.
 // Development API endpoint: https://localhost:3000/api/chat
-// Production API endpoint: https://discord-ai-orcin.vercel.app/api/chat
+// Production API endpoint: https://discord-ai-extension.vercel.app/api/chat
 // Main API endpoint: https://www.fastaireader.com/api/chat
 
 // Define a type for our chat messages
@@ -24,6 +24,32 @@ type Message = {
 
 // Add near the top, after imports
 const logPrefix = '[SidePanel]'
+
+// Error message types
+type ErrorType = 'stream' | 'auth' | 'network' | 'unknown'
+
+type ErrorState = {
+  type: ErrorType
+  message: string
+  timestamp: number
+}
+
+// Error message component
+const ErrorMessage: React.FC<{ error: ErrorState; onDismiss: () => void }> = ({
+  error,
+  onDismiss,
+}) => {
+  return (
+    <div className={`error-message error-${error.type}`}>
+      <div className="error-content">
+        <span>{error.message}</span>
+        <button onClick={onDismiss} className="error-dismiss">
+          ×
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // Rename to handleSearchUsernameClick and update message format
 const handleSearchUsernameClick = (text: string) => {
@@ -55,6 +81,40 @@ const BlockedGuildView = () => {
 
 export const SidePanel: React.FC = () => {
   const [authToken, setAuthToken] = useState<string>('')
+  const [currentError, setCurrentError] = useState<ErrorState | null>(null)
+
+  // Function to create error state
+  const createError = (type: ErrorType, message: string): ErrorState => ({
+    type,
+    message,
+    timestamp: Date.now(),
+  })
+
+  // Function to handle error dismissal
+  const handleErrorDismiss = () => {
+    setCurrentError(null)
+  }
+
+  // Function to handle different types of errors
+  const handleError = (error: any) => {
+    console.error(`${logPrefix} Error occurred:`, error)
+
+    if (error.message?.includes('Failed to parse stream')) {
+      setCurrentError(
+        createError('stream', 'There was an error processing the AI response. Please try again.'),
+      )
+    } else if (error.message?.includes('unauthorized') || error.status === 401) {
+      setCurrentError(createError('auth', 'Your session has expired. Please sign in again.'))
+      // Trigger sign out flow
+      chrome.runtime.sendMessage({ action: 'SIGN_OUT' })
+    } else if (error.message?.includes('network') || error.message?.includes('Failed to fetch')) {
+      setCurrentError(
+        createError('network', 'Network error. Please check your connection and try again.'),
+      )
+    } else {
+      setCurrentError(createError('unknown', 'An unexpected error occurred. Please try again.'))
+    }
+  }
 
   useEffect(() => {
     chrome.storage.local.get('authToken').then((result) => {
@@ -94,8 +154,10 @@ export const SidePanel: React.FC = () => {
     },
     credentials: 'same-origin',
     initialMessages: [],
+    streamProtocol: 'text', // Required in 4.1+ to handle text-based streaming responses
     onResponse: (response: Response) => {
-      // Log request details that don't require body reading
+      // Clear any existing errors when we get a successful response
+      setCurrentError(null)
       console.log(`${logPrefix} Request details:`, {
         url: response.url,
         method: response.type,
@@ -105,13 +167,13 @@ export const SidePanel: React.FC = () => {
       })
     },
     onError: (error) => {
+      handleError(error)
       console.error(`${logPrefix} Chat error:`, {
         name: error.name,
         message: error.message,
         stack: error.stack,
       })
 
-      // Log additional error context if available
       if (error instanceof Response) {
         console.error(`${logPrefix} Response error details:`, {
           status: error.status,
@@ -509,6 +571,7 @@ export const SidePanel: React.FC = () => {
   // Modify the main render to show blocked state
   return (
     <main className="side-panel">
+      {currentError && <ErrorMessage error={currentError} onDismiss={handleErrorDismiss} />}
       {isBlockedGuild ? (
         <BlockedGuildView />
       ) : isSignedIn ? (

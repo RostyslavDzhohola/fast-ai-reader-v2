@@ -2,8 +2,7 @@ import { defineManifest } from '@crxjs/vite-plugin'
 import packageData from '../package.json'
 import { RESTRICTED_GUILDS } from './config/restrictions'
 
-//@ts-ignore
-const isDev = process.env.NODE_ENV == 'development'
+const isDev = process.env.NODE_ENV === 'development'
 
 export default defineManifest({
   name: `${packageData.displayName || packageData.name}${isDev ? ` ➡️ Dev` : ''}`,
@@ -19,7 +18,6 @@ export default defineManifest({
   action: {
     default_icon: 'img/logo-48.png',
     default_title: 'Discord AI Assistant',
-    // default_popup: 'popup.html',
   },
   options_page: 'options.html',
   devtools_page: 'devtools.html',
@@ -38,14 +36,18 @@ export default defineManifest({
   web_accessible_resources: [
     {
       resources: ['img/logo-16.png', 'img/logo-34.png', 'img/logo-48.png', 'img/logo-128.png'],
-      matches: [],
+      matches: ['*://*.discord.com/*'],
+    },
+    {
+      resources: ['assets/*', '*.js', '*.css'],
+      matches: ['<all_urls>'],
     },
   ],
   permissions: ['storage', 'sidePanel', 'activeTab', 'identity', 'tabs', 'windows'],
   host_permissions: [
     'https://discord.com/*',
     'http://localhost:3000/',
-    'https://discord-ai-orcin.vercel.app/',
+    'https://discord-ai-extension.vercel.app/',
     'https://www.fastaireader.com/',
   ],
   oauth2: {

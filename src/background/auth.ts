@@ -1,4 +1,4 @@
-// For production: https://discord-ai-orcin.vercel.app/
+// For production: https://discord-ai-extension.vercel.app
 // For development: http://localhost:3000/
 // For main: // https://www.fastaireader.com/
 
@@ -169,7 +169,7 @@ async function authenticateWithBackend(accessToken: string): Promise<AuthRespons
 
   // TODO: Change this to the production URL
   try {
-    const response = await fetch('http://localhost:3000/api/authenticate', {
+    const response = await fetch('https://discord-ai-extension.vercel.app/api/authenticate', {
       // TODO: change to production endpoint
       method: 'POST',
       headers: {
@@ -333,3 +333,30 @@ export async function checkAuthStatus() {
   const { googleToken } = await chrome.storage.local.get('googleToken')
   return !!googleToken
 }
+
+// Add message handlers for auth-related actions
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'CHECK_AUTH_STATUS') {
+    checkAuthStatus()
+      .then((isSignedIn) => {
+        sendResponse({ isSignedIn })
+      })
+      .catch((error) => {
+        console.error('Error checking auth status:', error)
+        sendResponse({ isSignedIn: false })
+      })
+    return true // Keep the message channel open for async response
+  }
+
+  if (message.action === 'INITIALIZE_GOOGLE_AUTH') {
+    initializeGoogleAuth()
+      .then((response) => {
+        sendResponse(response)
+      })
+      .catch((error) => {
+        console.error('Error initializing Google auth:', error)
+        sendResponse({ success: false, error: error.message })
+      })
+    return true // Keep the message channel open for async response
+  }
+})
