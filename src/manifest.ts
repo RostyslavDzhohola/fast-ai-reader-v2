@@ -45,7 +45,7 @@ export default defineManifest({
   host_permissions: [
     'https://discord.com/*',
     'http://localhost:3000/',
-    'https://discord-ai-orcin.vercel.app/',
+    'https://discord-ai-extension.vercel.app/',
     'https://www.fastaireader.com/',
   ],
   oauth2: {

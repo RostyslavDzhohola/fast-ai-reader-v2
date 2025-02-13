@@ -162,7 +162,7 @@ export const Popup: React.FC = () => {
             <button
               onClick={() =>
                 chrome.tabs.create({
-                  url: 'https://discord-ai-orcin.vercel.app/',
+                  url: 'https://www.fastaireader.com/',
                   active: true,
                 })
               }

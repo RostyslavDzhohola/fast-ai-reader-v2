@@ -10,7 +10,7 @@ import ReactMarkdown from 'react-markdown'
 
 // TODO: The chat generation is not smooth. It's too buggy.
 // Development API endpoint: https://localhost:3000/api/chat
-// Production API endpoint: https://discord-ai-orcin.vercel.app/api/chat
+// Production API endpoint: https://discord-ai-extension.vercel.app/api/chat
 // Main API endpoint: https://www.fastaireader.com/api/chat
 
 // Define a type for our chat messages
@@ -87,7 +87,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'http://localhost:3000/api/chat', // For local testing, don't forget to switch to, from HTTPS to HTTP.
+    api: 'https://discord-ai-extension.vercel.app/api/chat', // For local testing, don't forget to switch to, from HTTPS to HTTP.
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,

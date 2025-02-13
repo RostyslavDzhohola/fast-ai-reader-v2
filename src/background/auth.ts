@@ -1,4 +1,4 @@
-// For production: https://discord-ai-orcin.vercel.app/
+// For production: https://discord-ai-extension.vercel.app/
 // For development: http://localhost:3000/
 // For main: // https://www.fastaireader.com/
 
@@ -169,7 +169,7 @@ async function authenticateWithBackend(accessToken: string): Promise<AuthRespons
 
   // TODO: Change this to the production URL
   try {
-    const response = await fetch('http://localhost:3000/api/authenticate', {
+    const response = await fetch('https://discord-ai-extension.vercel.app/api/authenticate', {
       // TODO: change to production endpoint
       method: 'POST',
       headers: {

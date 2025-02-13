@@ -211,7 +211,7 @@ export const Options: React.FC = () => {
               <h3>Registration Required</h3>
               <p>Please register on our website first to use this extension.</p>
               <button
-                onClick={() => chrome.tabs.create({ url: 'https://discord-ai-orcin.vercel.app/' })}
+                onClick={() => chrome.tabs.create({ url: 'https://www.fastaireader.com/' })}
                 className="registration-button"
               >
                 Register Now
