@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import './SidePanel.css'
 import { useChat } from '@ai-sdk/react'
-import { Message } from '@ai-sdk/ui-utils'
+import { Message as AIMessage } from '@ai-sdk/ui-utils'
 import { isGuildRestricted } from '../config/restrictions'
 import ReactMarkdown from 'react-markdown'
 import ErrorPopup from '../components/ErrorPopup'
@@ -10,6 +10,7 @@ import HelpModal from '../components/HelpModal'
 import SignedOutView from '../components/SignedOutView'
 import ResearchModal from '../components/ResearchModal'
 import ChatInput from '../components/ChatInput'
+import Message from '../components/Message'
 import useUsernameSearch from '../hooks/useUsernameSearch'
 import useChatHistory from '../hooks/useChatHistory'
 import { ExtendedMessage } from '../types/chat'
@@ -80,7 +81,7 @@ export const SidePanel: React.FC = () => {
     if (!input.trim()) return
 
     // Create user message
-    const userMessage: Message = {
+    const userMessage: AIMessage = {
       content: input,
       role: 'user',
       id: Date.now().toString(),
@@ -140,7 +141,7 @@ export const SidePanel: React.FC = () => {
   }, [])
 
   // console.log('Side panel component mounted')
-  const [chatHistory, setChatHistory] = useState<Message[]>([])
+  const [chatHistory, setChatHistory] = useState<AIMessage[]>([])
   const outputRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
@@ -417,44 +418,13 @@ export const SidePanel: React.FC = () => {
             <div className="messages" ref={outputRef}>
               {aiMessages.length > 0 ? (
                 (aiMessages as ExtendedMessage[]).map((message) => (
-                  <div
+                  <Message
                     key={message.id}
-                    className={`message ${message.role} ${message.isExtracted ? 'extracted' : ''}`}
-                    onClick={() =>
-                      message.isExtracted ? toggleMessageCollapse(message.id) : undefined
-                    }
-                    style={{ cursor: message.isExtracted ? 'pointer' : 'default' }}
-                  >
-                    {message.isExtracted ? (
-                      <>
-                        <div className="extracted-header">
-                          {`${message.messageCount} Messages Extracted`}
-                          <span className="collapse-indicator">
-                            {collapsedMessages.has(message.id) ? '▼' : '▲'}
-                          </span>
-                        </div>
-                        {!collapsedMessages.has(message.id) && (
-                          <pre dangerouslySetInnerHTML={{ __html: message.content }} />
-                        )}
-                      </>
-                    ) : (
-                      <ReactMarkdown
-                        components={{
-                          strong: ({ node, children }) => <strong>{children}</strong>,
-                          em: ({ node, children }) => (
-                            <em
-                              onClick={() => searchUsername(String(children))}
-                              style={{ cursor: 'pointer' }}
-                            >
-                              {children}
-                            </em>
-                          ),
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-                    )}
-                  </div>
+                    message={message}
+                    isCollapsed={collapsedMessages.has(message.id)}
+                    onToggleCollapse={toggleMessageCollapse}
+                    onUsernameClick={searchUsername}
+                  />
                 ))
               ) : (
                 <div className="empty-chat">AI response will appear here...</div>
