@@ -11,9 +11,12 @@ import SignedOutView from '../components/SignedOutView'
 import ResearchModal from '../components/ResearchModal'
 import ChatInput from '../components/ChatInput'
 import Message from '../components/Message'
+import ChatControls from '../components/ChatControls'
 import useUsernameSearch from '../hooks/useUsernameSearch'
 import useChatHistory from '../hooks/useChatHistory'
 import { ExtendedMessage } from '../types/chat'
+import { useScroll } from '../hooks/useScroll'
+import useGuildRestriction from '../hooks/useGuildRestriction'
 
 // TODO: Replace the API key with the fetch request to my API backend
 
@@ -142,75 +145,16 @@ export const SidePanel: React.FC = () => {
 
   // console.log('Side panel component mounted')
   const [chatHistory, setChatHistory] = useState<AIMessage[]>([])
-  const outputRef = useRef<HTMLDivElement>(null)
-  const chatContainerRef = useRef<HTMLDivElement>(null)
+
+  // Add useScroll hook
+  const { chatContainerRef, outputRef, shouldAutoScroll, scrollToBottom } = useScroll({
+    isLoading,
+    messagesLength: aiMessages.length,
+  })
 
   // New state for modal and message count
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
   const [messageCount, setMessageCount] = useState<number>(100) // Default to 10 messages
-
-  // Add this state near your other state declarations
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
-
-  useEffect(() => {
-    // Function to check if user is near bottom
-    const isNearBottom = () => {
-      if (chatContainerRef.current) {
-        const container = chatContainerRef.current
-        const threshold = 100 // pixels from bottom
-        return container.scrollHeight - container.scrollTop - container.clientHeight <= threshold
-      }
-      return true
-    }
-
-    // Function to scroll to bottom
-    const scrollToBottom = () => {
-      if (!shouldAutoScroll || isLoading) return
-
-      // Handle scroll for output
-      if (outputRef.current) {
-        outputRef.current.scrollTop = outputRef.current.scrollHeight
-      }
-
-      // Handle scroll for chat container
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
-      }
-    }
-
-    // Update shouldAutoScroll when user scrolls
-    const handleScroll = () => {
-      setShouldAutoScroll(isNearBottom())
-    }
-
-    // Add scroll event listener
-    const container = chatContainerRef.current
-    if (container) {
-      container.addEventListener('scroll', handleScroll)
-    }
-
-    // Scroll when messages change only if we should auto-scroll
-    if (shouldAutoScroll) {
-      scrollToBottom()
-    }
-
-    // Add event listener for when side panel becomes visible
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && shouldAutoScroll) {
-        scrollToBottom()
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // Cleanup
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (container) {
-        container.removeEventListener('scroll', handleScroll)
-      }
-    }
-  }, [chatHistory, aiMessages, shouldAutoScroll]) // Watch shouldAutoScroll state too
 
   const handleResetChat = () => {
     setMessages([])
@@ -324,46 +268,8 @@ export const SidePanel: React.FC = () => {
     console.log(`${logPrefix} Chat loading state:`, isLoading)
   }, [isLoading])
 
-  // Add URL change listener
-  const [isBlockedGuild, setIsBlockedGuild] = useState<boolean>(false)
-
-  useEffect(() => {
-    const handleUrlChange = (message: any) => {
-      if (message.action === 'URL_CHANGED') {
-        console.log(`${logPrefix} URL changed:`, message)
-        setIsBlockedGuild(message.isBlocked)
-      }
-    }
-
-    // Add message listeners for both runtime and tabs
-    chrome.runtime.onMessage.addListener(handleUrlChange)
-
-    // Check current URL on mount and set up interval to check periodically
-    const checkCurrentUrl = async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      if (tab?.url) {
-        // Extract guild ID from Discord URL
-        const guildMatch = tab.url.match(/discord\.com\/channels\/(\d+)/)
-        const guildId = guildMatch ? guildMatch[1] : null
-        const isBlocked = guildId ? isGuildRestricted(guildId) : false
-        setIsBlockedGuild(isBlocked)
-      }
-    }
-
-    // Check immediately on mount
-    checkCurrentUrl()
-
-    // Set up periodic check every second
-    const intervalId = setInterval(checkCurrentUrl, 1000)
-
-    // Request initial state from background
-    chrome.runtime.sendMessage({ action: 'sidePanelReady' })
-
-    return () => {
-      chrome.runtime.onMessage.removeListener(handleUrlChange)
-      clearInterval(intervalId)
-    }
-  }, [])
+  // Add useGuildRestriction hook
+  const { isBlockedGuild } = useGuildRestriction()
 
   // Add new state for help modal
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
@@ -399,21 +305,12 @@ export const SidePanel: React.FC = () => {
       ) : isSignedIn ? (
         // Your existing chat UI
         <>
-          <div className="button-container">
-            <button onClick={handleResetChat} className="reset-button">
-              Clear Chat
-            </button>
-            <button onClick={handleResearchClick} className="research-button">
-              Research
-            </button>
-            <div style={{ flexGrow: 1 }}></div>
-            <button onClick={() => setIsHelpModalOpen(true)} className="help-icon">
-              ?
-            </button>
-            <button onClick={handleContactClick} className="contact-button">
-              Contact
-            </button>
-          </div>
+          <ChatControls
+            onClearChat={handleResetChat}
+            onResearch={handleResearchClick}
+            onHelp={() => setIsHelpModalOpen(true)}
+            onContact={handleContactClick}
+          />
           <div className="chat-container" ref={chatContainerRef}>
             <div className="messages" ref={outputRef}>
               {aiMessages.length > 0 ? (
