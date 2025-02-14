@@ -48,9 +48,7 @@ async function extractMessages(count: number): Promise<string[]> {
   // Try to find Discord's internal message list component
   async function triggerMessageLoad(): Promise<boolean> {
     try {
-      const scroller = document.querySelector(
-        'div[class*="scroller_e2e187"][class*="customTheme_"]',
-      ) as HTMLElement
+      const scroller = document.querySelector('div[class*="scroller__36d07"]') as HTMLElement
 
       if (!scroller) {
         console.error('Could not find scroller element')

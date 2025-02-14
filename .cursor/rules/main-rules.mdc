@@ -1,0 +1,57 @@
+---
+description: General project rules. 
+globs: *
+---
+
+# Your rule content
+
+React Best Practices:
+
+Use functional components and hooks instead of class components
+Implement proper React memo and useMemo for performance optimization
+Follow the React hooks rules strictly to avoid common pitfalls
+Utilize React.lazy and Suspense for code-splitting and better performance
+Implement proper error boundaries to handle and display errors gracefully
+Use PropTypes or TypeScript for type checking and better code maintainability
+
+OpenAI Best Practices:
+
+Implement proper error handling and retries for API requests
+Use streaming responses for large language model outputs to improve user experience
+Implement rate limiting and proper API key management for security
+Cache API responses where appropriate to reduce costs and improve performance
+Use the latest model versions for better results and security updates
+Implement proper input sanitization to prevent prompt injection attacks
+
+AI SDK Best Practices:
+
+Follow the SDK's documentation for proper initialization and usage
+Implement proper error handling and logging for SDK operations
+Use the SDK's built-in features for authentication and authorization
+Regularly update the SDK to benefit from performance improvements and security patches
+Implement proper rate limiting and quota management when using the SDK
+
+React Markdown Best Practices:
+
+Sanitize user input to prevent XSS attacks when rendering markdown
+Use the `remark` and `rehype` plugins for enhanced markdown processing and security
+Implement proper error handling for markdown parsing and rendering
+Optimize performance by memoizing the markdown component when possible
+Use the `allowedElements` and `allowedAttributes` options to control what HTML is rendered
+
+General Standards:
+
+Keep components small and focused for better maintainability
+Follow proper state management patterns, such as using Redux or Context API
+Implement proper testing practices, including unit tests and integration tests
+Use ESLint and Prettier for consistent code style and quality
+Implement proper logging and monitoring for production environments
+Regularly update dependencies to benefit from security patches and performance improvements
+
+# Comments
+
+Do not delete comments if I did not explicitly ask for deletion of comments. I keep comments for my reference and understanding of the code.
+
+# Coding Rules
+
+Do not make changes or add code that I specifically did not request for. Focus on one task at a time.
