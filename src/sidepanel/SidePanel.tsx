@@ -1,8 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react'
 import './SidePanel.css'
-import { useChat } from 'ai/react'
+import { useChat } from '@ai-sdk/react'
+import { Message } from '@ai-sdk/ui-utils'
 import { isGuildRestricted } from '../config/restrictions'
 import ReactMarkdown from 'react-markdown'
+import ErrorPopup from '../components/ErrorPopup'
+import BlockedGuildView from '../components/BlockedGuildView'
+import HelpModal from '../components/HelpModal'
+import SignedOutView from '../components/SignedOutView'
+import ResearchModal from '../components/ResearchModal'
+import ChatInput from '../components/ChatInput'
+import useUsernameSearch from '../hooks/useUsernameSearch'
+import useChatHistory from '../hooks/useChatHistory'
+import { ExtendedMessage } from '../types/chat'
 
 // TODO: Replace the API key with the fetch request to my API backend
 
@@ -13,75 +23,22 @@ import ReactMarkdown from 'react-markdown'
 // Production API endpoint: https://discord-ai-extension.vercel.app/api/chat
 // Main API endpoint: https://www.fastaireader.com/api/chat
 
-// Define a type for our chat messages
-type Message = {
-  id: string
-  role: 'user' | 'assistant' | 'system' | 'data' | 'function' | 'tool'
-  content: string
-  isExtracted?: boolean
-  messageCount?: number
-}
-
 // Add near the top, after imports
 const logPrefix = '[SidePanel]'
-
-// Rename to handleSearchUsernameClick and update message format
-const handleSearchUsernameClick = (text: string) => {
-  console.log(`${logPrefix} Searching for username:`, text)
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]?.id) {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        action: 'find_username',
-        username: text,
-      })
-    }
-  })
-}
 
 // Track if text is both bold and italic
 let isBoldAndItalic = false
 
-// Add this component for blocked guild message in side panel
-const BlockedGuildView = () => {
-  return (
-    <div className="blocked-guild-container">
-      <div className="blocked-guild-content">
-        <h2>Access Restricted</h2>
-        <p>This Discord server has been restricted from using the AI Assistant extension.</p>
-      </div>
-    </div>
-  )
-}
-
 export const SidePanel: React.FC = () => {
+  const { searchUsername } = useUsernameSearch()
   const [authToken, setAuthToken] = useState<string>('')
+  const [isSignedIn, setIsSignedIn] = useState(false)
   // Add state for error popup
   const [errorPopup, setErrorPopup] = useState<{
     show: boolean
     message: string
     details?: string[]
   }>({ show: false, message: '' })
-
-  useEffect(() => {
-    chrome.storage.local.get('authToken').then((result) => {
-      if (result.authToken) {
-        // console.log(`${logPrefix} Auth token loaded from storage`)
-        setAuthToken(result.authToken)
-      } else {
-        console.warn(`${logPrefix} No auth token found in storage`)
-      }
-    })
-  }, [])
-
-  // useEffect(() => {
-  //   if (authToken) {
-  //     console.log(`${logPrefix} Current auth token:`, {
-  //       token: authToken,
-  //       length: authToken.length,
-  //       prefix: authToken.substring(0, 15) + '...',
-  //     })
-  //   }
-  // }, [authToken])
 
   const {
     messages: aiMessages,
@@ -93,7 +50,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'http://localhost:3000/api/chat', // For local testing, don't forget to switch to, from HTTPS to HTTP.
+    api: 'http://localhost:3000/api/chat',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
@@ -116,44 +73,6 @@ export const SidePanel: React.FC = () => {
         console.warn(`${logPrefix} Warning: Unexpected content type:`, contentType)
       }
     },
-    onError: (error) => {
-      // Handle stream parsing error specifically
-      if (error.message?.includes('Failed to parse stream string')) {
-        console.error(`${logPrefix} Stream parsing error detected:`, {
-          error,
-          message: 'The server response format is incompatible with the client expectations.',
-          suggestion:
-            'This usually indicates a mismatch between the server response format and what the AI SDK expects.',
-        })
-
-        setErrorPopup({
-          show: true,
-          message: 'Server Response Format Error',
-          details: [
-            'The server response format is incompatible with the client expectations.',
-            'This usually indicates a mismatch between the server response format.',
-            'Please try again or contact support if the issue persists.',
-          ],
-        })
-
-        return // Exit early after handling this specific error
-      }
-
-      // Log general error information
-      console.error(`${logPrefix} Chat error:`, {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      })
-
-      if (error instanceof Response) {
-        console.error(`${logPrefix} Response error details:`, {
-          status: error.status,
-          statusText: error.statusText,
-          headers: Object.fromEntries(error.headers.entries()),
-        })
-      }
-    },
   })
 
   // Modify handleSubmit to use append instead of direct storage
@@ -161,9 +80,9 @@ export const SidePanel: React.FC = () => {
     if (!input.trim()) return
 
     // Create user message
-    const userMessage = {
+    const userMessage: Message = {
       content: input,
-      role: 'user' as const,
+      role: 'user',
       id: Date.now().toString(),
     }
 
@@ -177,16 +96,48 @@ export const SidePanel: React.FC = () => {
   // Update the handleKeyDown to use new handleSubmit
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !isLoading) {
-      // console.log(`${logPrefix} Submitting message with auth:`, {
-      //   hasToken: !!authToken,
-      //   tokenLength: authToken?.length,
-      //   tokenPrefix: authToken ? `${authToken.substring(0, 15)}...` : 'none',
-      //   input,
-      // })
       e.preventDefault()
       handleSubmit(e as any as React.FormEvent<HTMLFormElement>)
     }
   }
+
+  // Use chat history hook
+  const { loadChatHistory } = useChatHistory(aiMessages as ExtendedMessage[], setMessages as any)
+
+  // Update the auth state effect to also handle message loading
+  useEffect(() => {
+    const handleAuthStateChange = (message: any) => {
+      if (message.action === 'AUTH_STATE_CHANGED') {
+        console.log('Auth state changed:', message.state)
+
+        if (message.state === 'SIGNED_IN') {
+          setIsSignedIn(true)
+          setAuthToken(message.token)
+          console.log('User signed in, token:', message.token)
+          // Load messages when user signs in
+          loadChatHistory()
+        } else if (message.state === 'SIGNED_OUT') {
+          setIsSignedIn(false)
+          setAuthToken('')
+          setMessages([])
+          console.log('User signed out')
+        }
+      }
+    }
+
+    // Check initial auth state and load messages if authenticated
+    chrome.storage.local.get(['authToken'], (result) => {
+      if (result.authToken) {
+        setIsSignedIn(true)
+        setAuthToken(result.authToken)
+        // Load messages on initial mount if user is authenticated
+        loadChatHistory()
+      }
+    })
+
+    chrome.runtime.onMessage.addListener(handleAuthStateChange)
+    return () => chrome.runtime.onMessage.removeListener(handleAuthStateChange)
+  }, [])
 
   // console.log('Side panel component mounted')
   const [chatHistory, setChatHistory] = useState<Message[]>([])
@@ -198,39 +149,6 @@ export const SidePanel: React.FC = () => {
   const [messageCount, setMessageCount] = useState<number>(100) // Default to 10 messages
 
   // Add this state near your other state declarations
-  const [isSignedIn, setIsSignedIn] = useState(true)
-
-  // Load chat history and API key when component mounts
-  useEffect(() => {
-    console.log(`${logPrefix} Component mounting...`)
-    loadChatHistory()
-
-    // Notify background script that side panel is ready
-    chrome.runtime.sendMessage({ action: 'sidePanelReady' }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error notifying background script:', chrome.runtime.lastError)
-      } else {
-        console.log('Background script notified of side panel ready state')
-      }
-    })
-
-    const handleMessage = (message: any) => {
-      console.log(`${logPrefix} Received message:`, message)
-      if (message.action === 'reloadSidePanel') {
-        console.log(`${logPrefix} Reloading side panel...`)
-      }
-    }
-
-    chrome.runtime.onMessage.addListener(handleMessage)
-
-    console.log(`${logPrefix} Component mounted successfully`)
-    return () => {
-      console.log(`${logPrefix} Component unmounting...`)
-      chrome.runtime.onMessage.removeListener(handleMessage)
-    }
-  }, [])
-
-  // Add this state to track if user is at bottom
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
 
   useEffect(() => {
@@ -292,14 +210,6 @@ export const SidePanel: React.FC = () => {
       }
     }
   }, [chatHistory, aiMessages, shouldAutoScroll]) // Watch shouldAutoScroll state too
-
-  const loadChatHistory = () => {
-    chrome.storage.local.get(['chatHistory'], (result) => {
-      if (result.chatHistory) {
-        setChatHistory(result.chatHistory)
-      }
-    })
-  }
 
   const handleResetChat = () => {
     setMessages([])
@@ -413,89 +323,6 @@ export const SidePanel: React.FC = () => {
     console.log(`${logPrefix} Chat loading state:`, isLoading)
   }, [isLoading])
 
-  // Update the auth state effect to also handle message loading
-  useEffect(() => {
-    const loadStoredMessages = () => {
-      chrome.storage.local.get('aiMessages').then((result) => {
-        if (result.aiMessages) {
-          // console.log(`${logPrefix} Loading ${result.aiMessages.length} messages from storage`)
-          setMessages(result.aiMessages)
-        }
-      })
-    }
-
-    const handleAuthStateChange = (message: any) => {
-      if (message.action === 'AUTH_STATE_CHANGED') {
-        console.log('Auth state changed:', message.state)
-
-        if (message.state === 'SIGNED_IN') {
-          setIsSignedIn(true)
-          setAuthToken(message.token)
-          console.log('User signed in, token:', message.token)
-          // Load messages when user signs in
-          loadStoredMessages()
-        } else if (message.state === 'SIGNED_OUT') {
-          setIsSignedIn(false)
-          setAuthToken('')
-          setMessages([])
-          console.log('User signed out')
-        }
-      }
-    }
-
-    // Check initial auth state and load messages if authenticated
-    chrome.storage.local.get(['authToken', 'aiMessages'], (result) => {
-      if (result.authToken) {
-        setIsSignedIn(true)
-        setAuthToken(result.authToken)
-        // Load messages on initial mount if user is authenticated
-        if (result.aiMessages) {
-          console.log(`${logPrefix} Initial load: ${result.aiMessages.length} messages`)
-          setMessages(result.aiMessages)
-        }
-      }
-    })
-
-    chrome.runtime.onMessage.addListener(handleAuthStateChange)
-    return () => chrome.runtime.onMessage.removeListener(handleAuthStateChange)
-  }, [])
-
-  // Add this component for the signed-out state
-  const SignedOutView = () => {
-    const handleOptionsClick = () => {
-      chrome.runtime.openOptionsPage()
-    }
-
-    return (
-      <div className="signed-out-container">
-        <div className="signed-out-content">
-          <h2>Not Signed In</h2>
-          <p>You need to be signed in to use the Discord AI Assistant.</p>
-          <button onClick={handleOptionsClick} className="sign-in-button">
-            Go to Sign In
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // Keep the existing useEffect for storage - it will now handle both user and AI messages
-  useEffect(() => {
-    if (aiMessages.length > 0) {
-      chrome.storage.local.set({ aiMessages }).then(() => {
-        // console.log(`${logPrefix} Saved ${aiMessages.length} messages to storage`, {
-        //   lastMessage: aiMessages[aiMessages.length - 1],
-        // })
-      })
-    }
-  }, [aiMessages])
-
-  // TODO: Add jump to bottom button whenever I am scrolling up.
-  // TODO: Add loading messages icon while it is scanning the messages on the discord channel.
-  // TODO: Move the summary of the messages how many were extracted and their dates at the bottom of the message.
-  // TODO: make the loading of the stream of the chat reply smoother
-  // TODO: add button for choosing which OpenAI model to use.
-
   // Add URL change listener
   const [isBlockedGuild, setIsBlockedGuild] = useState<boolean>(false)
 
@@ -540,35 +367,32 @@ export const SidePanel: React.FC = () => {
   // Add new state for help modal
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
 
-  // Add error popup component
-  const ErrorPopup = () => {
-    if (!errorPopup.show) return null
+  // Keep the existing useEffect for storage - it will now handle both user and AI messages
+  useEffect(() => {
+    if (aiMessages.length > 0) {
+      chrome.storage.local.set({ aiMessages }).then(() => {
+        // console.log(`${logPrefix} Saved ${aiMessages.length} messages to storage`, {
+        //   lastMessage: aiMessages[aiMessages.length - 1],
+        // })
+      })
+    }
+  }, [aiMessages])
 
-    return (
-      <div className="error-popup-overlay">
-        <div className="error-popup">
-          <div className="error-popup-header">
-            <h3>{errorPopup.message}</h3>
-            <button
-              className="close-button"
-              onClick={() => setErrorPopup({ show: false, message: '' })}
-            >
-              ×
-            </button>
-          </div>
-          <div className="error-popup-content">
-            {errorPopup.details?.map((detail, index) => <p key={index}>{detail}</p>)}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // TODO: Add jump to bottom button whenever I am scrolling up.
+  // TODO: Add loading messages icon while it is scanning the messages on the discord channel.
+  // TODO: Move the summary of the messages how many were extracted and their dates at the bottom of the message.
+  // TODO: make the loading of the stream of the chat reply smoother
+  // TODO: add button for choosing which OpenAI model to use.
 
   // Modify the main render to show blocked state
   return (
     <main className="side-panel">
-      {/* Add ErrorPopup component at the top level */}
-      <ErrorPopup />
+      <ErrorPopup
+        show={errorPopup.show}
+        message={errorPopup.message}
+        details={errorPopup.details}
+        onClose={() => setErrorPopup({ show: false, message: '' })}
+      />
       {isBlockedGuild ? (
         <BlockedGuildView />
       ) : isSignedIn ? (
@@ -592,7 +416,7 @@ export const SidePanel: React.FC = () => {
           <div className="chat-container" ref={chatContainerRef}>
             <div className="messages" ref={outputRef}>
               {aiMessages.length > 0 ? (
-                aiMessages.map((message: Message) => (
+                (aiMessages as ExtendedMessage[]).map((message) => (
                   <div
                     key={message.id}
                     className={`message ${message.role} ${message.isExtracted ? 'extracted' : ''}`}
@@ -619,7 +443,7 @@ export const SidePanel: React.FC = () => {
                           strong: ({ node, children }) => <strong>{children}</strong>,
                           em: ({ node, children }) => (
                             <em
-                              onClick={() => handleSearchUsernameClick(String(children))}
+                              onClick={() => searchUsername(String(children))}
                               style={{ cursor: 'pointer' }}
                             >
                               {children}
@@ -637,106 +461,31 @@ export const SidePanel: React.FC = () => {
               )}
             </div>
           </div>
-          <div className="input-container">
-            <input
-              type="text"
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message here..."
-              className="prompt-input"
-              disabled={isLoading}
-            />
-            <button
-              onClick={(e) => handleSubmit(e as any)}
-              disabled={isLoading || !input.trim()}
-              className="ask-button"
-            >
-              {isLoading ? 'Asking...' : 'Ask'}
-            </button>
-          </div>
+          <ChatInput
+            input={input}
+            isLoading={isLoading}
+            onInputChange={handleInputChange}
+            onSubmit={handleSubmit}
+            onKeyDown={handleKeyDown}
+          />
 
           {/* Modal */}
-          {isModalOpen && (
-            <div className="modal">
-              <div className="modal-content">
-                <h2>Research</h2>
-                <div className="modal-section number-input">
-                  <label>Number of messages to analyze</label>
-                  <input
-                    type="number"
-                    value={messageCount || ''} // Use empty string when value is 0
-                    onChange={(e) => {
-                      const value = e.target.value
-                      // Only update if the value is empty or a positive number
-                      if (value === '' || parseInt(value) > 0) {
-                        setMessageCount(value === '' ? 0 : parseInt(value))
-                      }
-                    }}
-                    min="1"
-                    placeholder="1"
-                  />
-                </div>
-                <div className="modal-section textarea-input">
-                  <label>Custom Instructions (Optional)</label>
-                  <textarea
-                    value={customInstructions}
-                    onChange={(e) => setCustomInstructions(e.target.value)}
-                    placeholder="Please analyze these messages and be ready to answer questions about them."
-                    rows={4}
-                  />
-                </div>
-                <div className="modal-buttons">
-                  <button onClick={handleModalSubmit} disabled={!messageCount || messageCount < 1}>
-                    Submit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsModalOpen(false)
-                      setCustomInstructions('')
-                      setMessageCount(1) // Reset to 1 instead of 0
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <ResearchModal
+            isOpen={isModalOpen}
+            messageCount={messageCount}
+            customInstructions={customInstructions}
+            onSubmit={handleModalSubmit}
+            onClose={() => {
+              setIsModalOpen(false)
+              setCustomInstructions('')
+              setMessageCount(1) // Reset to 1 instead of 0
+            }}
+            onMessageCountChange={(count) => setMessageCount(count)}
+            onCustomInstructionsChange={(instructions) => setCustomInstructions(instructions)}
+          />
 
           {/* Help Modal */}
-          {isHelpModalOpen && (
-            <div className="modal" onClick={() => setIsHelpModalOpen(false)}>
-              <div className="modal-content help-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h2>Important Notice for Moderators</h2>
-                  <button className="close-button" onClick={() => setIsHelpModalOpen(false)}>
-                    ×
-                  </button>
-                </div>
-                <div className="modal-body">
-                  <p>
-                    If you don't want this tool to be used on your Discord server, please contact us
-                    and we will remove access of this extension from your server.
-                  </p>
-                  <button
-                    className="contact-button-primary"
-                    onClick={() => {
-                      const emailSubject = encodeURIComponent(
-                        'Please remove my Discord server from Fast AI Reader',
-                      )
-                      const emailBody = encodeURIComponent(
-                        'Please specify your Discord server URL here:\n\n',
-                      )
-                      window.location.href = `mailto:rostyslav.dzhohola@pm.me?subject=${emailSubject}&body=${emailBody}`
-                    }}
-                  >
-                    Contact Us
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
         </>
       ) : (
         <SignedOutView />
