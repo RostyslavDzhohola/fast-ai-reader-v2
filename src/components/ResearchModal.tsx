@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 
 type ResearchModalProps = {
   isOpen: boolean
@@ -23,10 +23,11 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
   isLoading = false,
   processedMessages = 0,
 }) => {
-  if (!isOpen) return null
+  // Calculate actual progress percentage
+  const progressPercentage =
+    messageCount > 0 ? Math.round((processedMessages / messageCount) * 100) : 0
 
-  // Calculate progress percentage
-  const progress = messageCount > 0 ? (processedMessages / messageCount) * 100 : 0
+  if (!isOpen) return null
 
   return (
     <div className="modal">
@@ -69,10 +70,16 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
               <span>
                 Processing messages: {processedMessages} / {messageCount}
               </span>
-              <span>{Math.round(progress)}%</span>
+              <span>{progressPercentage}%</span>
             </div>
             <div className="research-progress-bar-container">
-              <div className="research-progress-bar" style={{ width: `${progress}%` }} />
+              <div
+                className="research-progress-bar"
+                style={{
+                  width: `${progressPercentage}%`,
+                  transition: 'width 300ms ease-in-out',
+                }}
+              />
             </div>
           </div>
         )}

@@ -46,12 +46,17 @@ async function extractMessagesFromDiscord(count: number): Promise<string[]> {
     return []
   }
 
+  // Function to send progress update
+  const sendProgressUpdate = (processedCount: number) => {
+    chrome.runtime.sendMessage({
+      action: 'extractionProgress',
+      processedCount: Math.min(processedCount, count),
+      total: count,
+    })
+  }
+
   // Send initial progress
-  chrome.runtime.sendMessage({
-    action: 'extractionProgress',
-    processedCount: 0,
-    total: count,
-  })
+  sendProgressUpdate(0)
 
   // Try to find Discord's internal message list component and scroll for more messages
   async function scrollForMoreMessages(): Promise<boolean> {
@@ -146,10 +151,17 @@ async function extractMessagesFromDiscord(count: number): Promise<string[]> {
               })
               newMessagesFound++
 
-              // Log milestone for every 25 messages
+              // Send progress update more frequently (every 10 messages)
+              if (messageMap.size % 10 === 0 || messageMap.size === count) {
+                sendProgressUpdate(messageMap.size)
+              }
+
+              // Log milestone for monitoring (keep this for debugging)
               if (messageMap.size % 25 === 0) {
                 console.log(
-                  `%cMilestone: ${messageMap.size} unique messages collected (${Math.round((messageMap.size / count) * 100)}% complete)`,
+                  `%cMilestone: ${messageMap.size} unique messages collected (${Math.round(
+                    (messageMap.size / count) * 100,
+                  )}% complete)`,
                   'color: #00ff00; font-weight: bold;',
                 )
               }
@@ -165,13 +177,6 @@ async function extractMessagesFromDiscord(count: number): Promise<string[]> {
         'color: #00ffff; font-weight: bold;',
       )
     }
-
-    // Send progress update
-    chrome.runtime.sendMessage({
-      action: 'extractionProgress',
-      processedCount: Math.min(messageMap.size, count),
-      total: count,
-    })
 
     return messageMap.size > initialSize
   }
@@ -216,11 +221,7 @@ async function extractMessagesFromDiscord(count: number): Promise<string[]> {
     .map(({ message }) => message)
 
   // Send final progress update
-  chrome.runtime.sendMessage({
-    action: 'extractionProgress',
-    processedCount: Math.min(sortedMessages.length, count),
-    total: count,
-  })
+  sendProgressUpdate(Math.min(sortedMessages.length, count))
 
   // Scroll back to bottom before returning
   await scrollToBottom()

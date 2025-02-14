@@ -54,7 +54,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'http://localhost:3000/api/chat',
+    api: 'https://discord-ai-extension.vercel.app/api/chat', // Don't forget https for production
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
