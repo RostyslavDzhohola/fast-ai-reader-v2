@@ -718,3 +718,44 @@ body {
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* Research Progress Bar Styles */
+.research-progress-section {
+  margin: 1rem 0;
+  padding: 0 4px;
+}
+
+.research-progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #dcddde;
+}
+
+.research-progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background-color: #40444b;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.research-progress-bar {
+  height: 100%;
+  background-color: #5865f2;
+  transition: width 0.3s ease-in-out;
+}
+
+/* Update modal button disabled state */
+.modal-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-section input:disabled,
+.modal-section textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #2f3136;
+}

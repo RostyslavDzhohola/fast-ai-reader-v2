@@ -36,77 +36,91 @@ async function scrollToBottom() {
 
 // Function to extract messages from Discord
 async function extractMessagesFromDiscord(count: number): Promise<string[]> {
-  const messages: string[] = []
+  // Use a Map to maintain messages with timestamps as the source of truth
+  const messageMap = new Map<string, { timestamp: Date; message: string }>()
 
   // Get chat container with more detailed error checking
   const chatContainer = document.querySelector('[class*="messagesWrapper_"]') as HTMLElement
   if (!chatContainer) {
     console.error('Chat container not found')
-    return messages
+    return []
   }
 
-  // Try to find Discord's internal message list component
-  async function triggerMessageLoad(): Promise<boolean> {
+  // Send initial progress
+  chrome.runtime.sendMessage({
+    action: 'extractionProgress',
+    processedCount: 0,
+    total: count,
+  })
+
+  // Try to find Discord's internal message list component and scroll for more messages
+  async function scrollForMoreMessages(): Promise<boolean> {
     try {
-      // Updated selector to match Discord's current class names
       const scroller = document.querySelector(
         'div[class*="scroller"][class*="customTheme"][class*="auto"]',
       ) as HTMLElement
 
       if (!scroller) {
+        console.error('Scroller not found')
         return false
       }
 
-      // Log initial state
-      const initialMessages = document.querySelectorAll('[id^="chat-messages-"]')
+      // Get baseline message count before scrolling
+      let baselineMessageCount = document.querySelectorAll('[id^="chat-messages-"]').length
+      console.log(`Current baseline message count: ${baselineMessageCount}`)
 
-      // Gradually scroll up in smaller increments
+      // Configure scroll parameters
       scroller.style.scrollBehavior = 'auto'
-
-      // Start from current position
       let currentScrollTop = scroller.scrollTop
       const scrollIncrement = 2000
       const scrollDelay = 600
+      let foundNewMessages = false
 
       // Scroll up gradually
       while (currentScrollTop > 0) {
-        // Calculate next scroll position
+        // Calculate and apply next scroll position
         currentScrollTop = Math.max(0, currentScrollTop - scrollIncrement)
         scroller.scrollTop = currentScrollTop
-
-        // Dispatch scroll event
         scroller.dispatchEvent(new Event('scroll', { bubbles: true }))
 
-        // Give Discord time to load and render messages
+        // Wait for Discord to load messages
         await new Promise((resolve) => setTimeout(resolve, scrollDelay))
 
-        // Check if we loaded new messages
-        const newMessageCount = document.querySelectorAll('[id^="chat-messages-"]').length
+        // Check for new messages
+        const currentMessageCount = document.querySelectorAll('[id^="chat-messages-"]').length
 
-        if (newMessageCount > initialMessages.length) {
-          return true
+        if (currentMessageCount > baselineMessageCount) {
+          console.log(
+            `Found new messages: ${currentMessageCount - baselineMessageCount} new messages loaded`,
+          )
+          baselineMessageCount = currentMessageCount
+          foundNewMessages = true
         }
 
-        // Safety check - if we're at the top and no new messages, stop
-        if (currentScrollTop === 0 && newMessageCount === initialMessages.length) {
+        // Stop if we've reached the top
+        if (currentScrollTop === 0) {
+          console.log('Reached the top of the scroll area')
           break
         }
       }
 
       // Reset scroll behavior
       scroller.style.scrollBehavior = ''
-
-      return false
+      return foundNewMessages
     } catch (error) {
+      console.error('Error during scroll:', error)
       return false
     }
   }
 
-  function parseVisibleMessages() {
+  // Process currently visible messages and add new ones to our collection
+  function processVisibleMessages(): boolean {
+    console.log('Processing visible messages...')
     const messageGroups = document.querySelectorAll('[id^="chat-messages-"]')
-    const messagesArray: { timestamp: Date; message: string }[] = []
-    let currentUsername = ''
-    let currentTimestamp = ''
+    console.log(`Found ${messageGroups.length} message groups to process`)
+
+    const initialSize = messageMap.size
+    let newMessagesFound = 0
 
     messageGroups.forEach((group) => {
       const usernameElement = group.querySelector('span[id^="message-username-"]')
@@ -114,72 +128,104 @@ async function extractMessagesFromDiscord(count: number): Promise<string[]> {
       const contentElements = group.querySelectorAll('div[id^="message-content-"]')
 
       if (usernameElement && timestampElement) {
-        currentUsername = usernameElement.textContent?.trim() || 'Unknown User'
-        currentTimestamp = timestampElement.textContent?.trim() || 'Unknown Time'
-
-        // Parse the timestamp into a Date object
+        const username = usernameElement.textContent?.trim() || 'Unknown User'
+        const displayTimestamp = timestampElement.textContent?.trim() || 'Unknown Time'
         const date = timestampElement.getAttribute('datetime')
         const parsedDate = date ? new Date(date) : new Date()
 
         contentElements.forEach((contentElement) => {
           const content = contentElement.textContent?.trim() || ''
           if (content) {
-            const formattedMessage = `${currentUsername} | ${currentTimestamp}\n${content}\n`
-            messagesArray.push({
-              timestamp: parsedDate,
-              message: formattedMessage,
-            })
+            const formattedMessage = `${username} | ${displayTimestamp}\n${content}\n`
+            const messageKey = `${parsedDate.getTime()}-${username}-${content}` // Unique key for deduplication
+
+            if (!messageMap.has(messageKey)) {
+              messageMap.set(messageKey, {
+                timestamp: parsedDate,
+                message: formattedMessage,
+              })
+              newMessagesFound++
+
+              // Log milestone for every 25 messages
+              if (messageMap.size % 25 === 0) {
+                console.log(
+                  `%cMilestone: ${messageMap.size} unique messages collected (${Math.round((messageMap.size / count) * 100)}% complete)`,
+                  'color: #00ff00; font-weight: bold;',
+                )
+              }
+            }
           }
         })
       }
     })
 
-    // Sort messages by timestamp
-    messagesArray.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+    if (newMessagesFound > 0) {
+      console.log(
+        `%cAdded ${newMessagesFound} new messages (Total: ${messageMap.size})`,
+        'color: #00ffff; font-weight: bold;',
+      )
+    }
 
-    // Clear the messages array and add sorted messages
-    messages.length = 0
-    messagesArray.forEach(({ message }) => {
-      if (!messages.includes(message)) {
-        messages.push(message)
-      }
+    // Send progress update
+    chrome.runtime.sendMessage({
+      action: 'extractionProgress',
+      processedCount: Math.min(messageMap.size, count),
+      total: count,
     })
+
+    return messageMap.size > initialSize
   }
 
-  // Main workflow
-  parseVisibleMessages()
+  // Main extraction workflow
+  processVisibleMessages()
 
-  // Keep trying to load more messages until we have enough
   const maxAttempts = 20
   let attempts = 0
 
-  while (messages.length < count && attempts < maxAttempts) {
-    // Try to load more messages first
-    const loaded = await triggerMessageLoad()
-    if (!loaded) {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+  while (messageMap.size < count && attempts < maxAttempts) {
+    console.log(
+      `Attempt ${attempts + 1}/${maxAttempts} - Current messages: ${messageMap.size}/${count}`,
+    )
+
+    const foundNewMessages = await scrollForMoreMessages()
+    if (!foundNewMessages) {
+      console.log('No new messages found during scroll')
       attempts++
 
       if (attempts >= maxAttempts) {
+        console.log('Reached maximum attempts, stopping extraction')
         break
       }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000))
       continue
     }
 
-    // Extract messages after successful load
-    parseVisibleMessages()
+    const processedNewMessages = processVisibleMessages()
+    if (!processedNewMessages) {
+      console.log('No new messages found during processing')
+      attempts++
+    }
 
-    // Add a delay between successful loads
     await new Promise((resolve) => setTimeout(resolve, 500))
-    attempts++
   }
 
-  // console.log(`Total messages extracted: ${messages.length}`)
+  // Convert final map to array, sort by timestamp, and return requested count
+  const sortedMessages = Array.from(messageMap.values())
+    .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+    .map(({ message }) => message)
+
+  // Send final progress update
+  chrome.runtime.sendMessage({
+    action: 'extractionProgress',
+    processedCount: Math.min(sortedMessages.length, count),
+    total: count,
+  })
 
   // Scroll back to bottom before returning
   await scrollToBottom()
 
-  return messages.slice(-count)
+  return sortedMessages.slice(-count)
 }
 
 // Listen for messages from the background script
@@ -187,13 +233,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Content script received message:', request)
 
   if (request.action === 'extractMessages') {
-    extractMessagesFromDiscord(request.count).then((messages) => {
-      console.log('Successfully extracted messages:', {
-        count: messages.length,
-        sample: messages[0]?.substring(0, 100),
+    // Create a promise to handle the extraction
+    const extractionPromise = extractMessagesFromDiscord(request.count)
+      .then((messages) => {
+        console.log('Successfully extracted messages:', {
+          count: messages.length,
+          sample: messages[0]?.substring(0, 100),
+        })
+        return { messages }
       })
-      sendResponse({ messages })
-    })
+      .catch((error) => {
+        console.error('Error extracting messages:', error)
+        return { error: error.message }
+      })
+
+    // Keep the message channel open
+    extractionPromise.then(sendResponse)
+    return true
   }
 
   if (request.action === 'find_username') {

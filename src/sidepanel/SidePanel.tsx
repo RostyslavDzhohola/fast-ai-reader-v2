@@ -168,8 +168,23 @@ export const SidePanel: React.FC = () => {
     setIsModalOpen(true)
   }
 
+  // Add new state for extraction progress
+  const [extractionProgress, setExtractionProgress] = useState<{
+    isLoading: boolean
+    processedMessages: number
+  }>({
+    isLoading: false,
+    processedMessages: 0,
+  })
+
   const handleModalSubmit = () => {
     console.log(`${logPrefix} Requesting to extract ${messageCount} messages`)
+
+    // Start loading state
+    setExtractionProgress({
+      isLoading: true,
+      processedMessages: 0,
+    })
 
     chrome.runtime.sendMessage(
       {
@@ -177,6 +192,12 @@ export const SidePanel: React.FC = () => {
         count: messageCount,
       },
       (response) => {
+        // Reset loading state regardless of outcome
+        setExtractionProgress({
+          isLoading: false,
+          processedMessages: 0,
+        })
+
         if (chrome.runtime.lastError) {
           console.error(`${logPrefix} Error:`, chrome.runtime.lastError)
           return
@@ -186,6 +207,8 @@ export const SidePanel: React.FC = () => {
           if (response?.messages && Array.isArray(response.messages)) {
             console.log(`${logPrefix} Received ${response.messages.length} messages`)
             processReceivedMessages(response.messages)
+            // Only close the modal after successful processing
+            setIsModalOpen(false)
           } else {
             console.error(`${logPrefix} Invalid response format:`, response)
           }
@@ -194,9 +217,22 @@ export const SidePanel: React.FC = () => {
         }
       },
     )
-
-    setIsModalOpen(false)
   }
+
+  // Add message extraction progress listener
+  useEffect(() => {
+    const handleExtractionProgress = (message: any) => {
+      if (message.action === 'extractionProgress') {
+        setExtractionProgress({
+          isLoading: true,
+          processedMessages: message.processedCount,
+        })
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleExtractionProgress)
+    return () => chrome.runtime.onMessage.removeListener(handleExtractionProgress)
+  }, [])
 
   // Add new state for collapsed messages
   const [collapsedMessages, setCollapsedMessages] = useState<Set<string>>(new Set())
@@ -345,10 +381,17 @@ export const SidePanel: React.FC = () => {
             onClose={() => {
               setIsModalOpen(false)
               setCustomInstructions('')
-              setMessageCount(1) // Reset to 1 instead of 0
+              setMessageCount(1)
+              // Reset extraction progress when closing
+              setExtractionProgress({
+                isLoading: false,
+                processedMessages: 0,
+              })
             }}
             onMessageCountChange={(count) => setMessageCount(count)}
             onCustomInstructionsChange={(instructions) => setCustomInstructions(instructions)}
+            isLoading={extractionProgress.isLoading}
+            processedMessages={extractionProgress.processedMessages}
           />
 
           {/* Help Modal */}
