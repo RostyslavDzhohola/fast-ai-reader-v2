@@ -55,6 +55,12 @@ const BlockedGuildView = () => {
 
 export const SidePanel: React.FC = () => {
   const [authToken, setAuthToken] = useState<string>('')
+  // Add state for error popup
+  const [errorPopup, setErrorPopup] = useState<{
+    show: boolean
+    message: string
+    details?: string[]
+  }>({ show: false, message: '' })
 
   useEffect(() => {
     chrome.storage.local.get('authToken').then((result) => {
@@ -87,7 +93,7 @@ export const SidePanel: React.FC = () => {
     setMessages,
     append,
   } = useChat({
-    api: 'https://discord-ai-extension.vercel.app/api/chat', // For local testing, don't forget to switch to, from HTTPS to HTTP.
+    api: 'http://localhost:3000/api/chat', // For local testing, don't forget to switch to, from HTTPS to HTTP.
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${authToken}`,
@@ -103,15 +109,43 @@ export const SidePanel: React.FC = () => {
         statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries()),
       })
+
+      // Verify the content type
+      const contentType = response.headers.get('content-type')
+      if (!contentType?.includes('text/event-stream')) {
+        console.warn(`${logPrefix} Warning: Unexpected content type:`, contentType)
+      }
     },
     onError: (error) => {
+      // Handle stream parsing error specifically
+      if (error.message?.includes('Failed to parse stream string')) {
+        console.error(`${logPrefix} Stream parsing error detected:`, {
+          error,
+          message: 'The server response format is incompatible with the client expectations.',
+          suggestion:
+            'This usually indicates a mismatch between the server response format and what the AI SDK expects.',
+        })
+
+        setErrorPopup({
+          show: true,
+          message: 'Server Response Format Error',
+          details: [
+            'The server response format is incompatible with the client expectations.',
+            'This usually indicates a mismatch between the server response format.',
+            'Please try again or contact support if the issue persists.',
+          ],
+        })
+
+        return // Exit early after handling this specific error
+      }
+
+      // Log general error information
       console.error(`${logPrefix} Chat error:`, {
         name: error.name,
         message: error.message,
         stack: error.stack,
       })
 
-      // Log additional error context if available
       if (error instanceof Response) {
         console.error(`${logPrefix} Response error details:`, {
           status: error.status,
@@ -506,9 +540,35 @@ export const SidePanel: React.FC = () => {
   // Add new state for help modal
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
 
+  // Add error popup component
+  const ErrorPopup = () => {
+    if (!errorPopup.show) return null
+
+    return (
+      <div className="error-popup-overlay">
+        <div className="error-popup">
+          <div className="error-popup-header">
+            <h3>{errorPopup.message}</h3>
+            <button
+              className="close-button"
+              onClick={() => setErrorPopup({ show: false, message: '' })}
+            >
+              ×
+            </button>
+          </div>
+          <div className="error-popup-content">
+            {errorPopup.details?.map((detail, index) => <p key={index}>{detail}</p>)}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Modify the main render to show blocked state
   return (
     <main className="side-panel">
+      {/* Add ErrorPopup component at the top level */}
+      <ErrorPopup />
       {isBlockedGuild ? (
         <BlockedGuildView />
       ) : isSignedIn ? (
