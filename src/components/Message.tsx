@@ -1,53 +1,51 @@
-import React from 'react'
+import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { ExtendedMessage } from '../types/chat'
 
 type MessageProps = {
   message: ExtendedMessage
-  isCollapsed: boolean
+  isCollapsed?: boolean
   onToggleCollapse: (messageId: string) => void
   onUsernameClick: (username: string) => void
 }
 
 export const Message: React.FC<MessageProps> = ({
   message,
-  isCollapsed,
+  isCollapsed = true,
   onToggleCollapse,
   onUsernameClick,
 }) => {
+  const [isLocalCollapsed, setIsLocalCollapsed] = useState(message.isExtracted ? true : false)
+
   const handleClick = () => {
     if (message.isExtracted) {
+      setIsLocalCollapsed(!isLocalCollapsed)
       onToggleCollapse(message.id)
     }
   }
 
-  const handleUsernameClick = (username: string | undefined) => {
-    if (!username || typeof username !== 'string') {
-      console.error('Invalid username clicked:', username)
+  const handleUsernameClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const clickedText = (e.target as HTMLElement).textContent
+    if (!clickedText) return
+
+    // Only process if it looks like a Discord username (no spaces, etc)
+    if (clickedText.includes(' ') || clickedText.length < 2) {
+      console.log('[Message] Ignoring invalid username format:', clickedText)
       return
     }
 
-    // First try to extract username if it's from message content
-    let processedUsername = username
-    if (message.content && typeof message.content === 'string') {
-      try {
-        processedUsername = extractUsername(message)
-      } catch (error) {
-        console.error('Error extracting username from message:', error)
-      }
-    }
+    // Debug: Log what we're clicking and what we're passing
+    console.log('[Message] Username click:', {
+      messageRole: message.role,
+      messageContent: message.content,
+      clickedElement: e.target,
+      clickedText,
+    })
 
-    // Clean the username regardless of source
-    const cleanUsername = processedUsername.replace(/[<>@]/g, '').trim()
-    if (!cleanUsername) {
-      console.error('Username became empty after cleaning:', {
-        original: username,
-        cleaned: cleanUsername,
-      })
-      return
-    }
-
-    onUsernameClick?.(cleanUsername)
+    onUsernameClick(clickedText)
   }
 
   const extractUsername = (message: ExtendedMessage): string => {
@@ -76,9 +74,9 @@ export const Message: React.FC<MessageProps> = ({
       >
         <div className="extracted-header">
           {`${message.messageCount} Messages Extracted`}
-          <span className="collapse-indicator">{isCollapsed ? '▼' : '▲'}</span>
+          <span className="collapse-indicator">{isLocalCollapsed ? '▼' : '▲'}</span>
         </div>
-        {!isCollapsed && <pre dangerouslySetInnerHTML={{ __html: message.content }} />}
+        {!isLocalCollapsed && <pre dangerouslySetInnerHTML={{ __html: message.content }} />}
       </div>
     )
   }
@@ -88,11 +86,18 @@ export const Message: React.FC<MessageProps> = ({
       <ReactMarkdown
         components={{
           strong: ({ node, children }) => <strong>{children}</strong>,
-          em: ({ node, children }) => (
-            <em onClick={() => handleUsernameClick(String(children))} style={{ cursor: 'pointer' }}>
-              {children}
-            </em>
-          ),
+          em: ({ node, children }) => {
+            const text = String(children)
+            // Only make it clickable if it looks like a username
+            if (text.includes(' ') || text.length < 2) {
+              return <em>{children}</em>
+            }
+            return (
+              <em onClick={handleUsernameClick} style={{ cursor: 'pointer' }}>
+                {children}
+              </em>
+            )
+          },
         }}
       >
         {message.content}

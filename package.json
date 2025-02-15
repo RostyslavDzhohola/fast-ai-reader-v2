@@ -1,7 +1,7 @@
 {
   "name": "fast-ai-reader-v2",
   "displayName": "Fast AI Reader (beta)",
-  "version": "0.0.76",
+  "version": "0.1.0",
   "author": "Rostyslav Dzhohola",
   "description": "Chrome extension for doing research inside your Discord channels.",
   "type": "module",

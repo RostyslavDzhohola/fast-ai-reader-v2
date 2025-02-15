@@ -4,57 +4,57 @@ const logPrefix = '[useUsernameSearch]'
 
 export const useUsernameSearch = () => {
   const searchUsername = useCallback((text: string | undefined | null) => {
-    // Enhanced validation
+    // Debug: Log the exact input we're receiving
+    console.log(`${logPrefix} Raw input:`, {
+      text,
+      type: typeof text,
+      length: text?.length,
+      charCodes: text?.split('').map((c) => c.charCodeAt(0)),
+    })
+
     if (!text) {
       console.error(`${logPrefix} Invalid username provided: empty or null`)
       return
     }
 
-    if (typeof text === 'object') {
-      console.error(`${logPrefix} Invalid username type:`, {
-        type: typeof text,
-        value: text,
+    // Extract username if it contains a separator
+    let username = text
+    if (text.includes('|')) {
+      username = text.split('|')[0].trim()
+      console.log(`${logPrefix} Found separator, extracted:`, {
+        before: text,
+        after: username,
       })
-      return
     }
 
-    if (typeof text !== 'string') {
-      console.error(`${logPrefix} Invalid username type:`, typeof text)
-      return
-    }
-
-    // Trim and validate the username
-    const trimmedUsername = text.trim()
+    // Trim and validate
+    const trimmedUsername = username.trim()
     if (!trimmedUsername) {
       console.error(`${logPrefix} Username cannot be empty`)
       return
     }
 
-    console.log(`${logPrefix} Searching for username:`, {
+    console.log(`${logPrefix} Final username to search:`, {
       original: text,
-      trimmed: trimmedUsername,
+      processed: trimmedUsername,
     })
 
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (!tabs[0]?.id) {
-        console.error(`${logPrefix} No active tab found`)
-        return
-      }
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then((tabs) => {
+        const activeTab = tabs[0]
+        if (!activeTab?.id) {
+          throw new Error('No active tab found')
+        }
 
-      // Send message with validated username
-      chrome.tabs.sendMessage(
-        tabs[0].id,
-        {
+        return chrome.tabs.sendMessage(activeTab.id, {
           action: 'find_username',
           username: trimmedUsername,
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.error(`${logPrefix} Error sending message:`, chrome.runtime.lastError)
-          }
-        },
-      )
-    })
+        })
+      })
+      .catch((error) => {
+        console.error(`${logPrefix} Error in username search:`, error)
+      })
   }, [])
 
   return { searchUsername }

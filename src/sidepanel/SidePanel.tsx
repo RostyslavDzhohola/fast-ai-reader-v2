@@ -30,9 +30,6 @@ import useGuildRestriction from '../hooks/useGuildRestriction'
 // Add near the top, after imports
 const logPrefix = '[SidePanel]'
 
-// Track if text is both bold and italic
-let isBoldAndItalic = false
-
 export const SidePanel: React.FC = () => {
   const { searchUsername } = useUsernameSearch()
   const [authToken, setAuthToken] = useState<string>('')
