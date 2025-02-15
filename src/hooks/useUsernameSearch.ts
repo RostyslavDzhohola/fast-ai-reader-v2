@@ -4,20 +4,36 @@ const logPrefix = '[useUsernameSearch]'
 
 export const useUsernameSearch = () => {
   const searchUsername = useCallback((text: string | undefined | null) => {
-    // Validate input
-    if (!text || typeof text !== 'string') {
-      console.error(`${logPrefix} Invalid username provided:`, text)
+    // Enhanced validation
+    if (!text) {
+      console.error(`${logPrefix} Invalid username provided: empty or null`)
       return
     }
 
-    // Trim the username and check if it's empty
+    if (typeof text === 'object') {
+      console.error(`${logPrefix} Invalid username type:`, {
+        type: typeof text,
+        value: text,
+      })
+      return
+    }
+
+    if (typeof text !== 'string') {
+      console.error(`${logPrefix} Invalid username type:`, typeof text)
+      return
+    }
+
+    // Trim and validate the username
     const trimmedUsername = text.trim()
     if (!trimmedUsername) {
       console.error(`${logPrefix} Username cannot be empty`)
       return
     }
 
-    console.log(`${logPrefix} Searching for username:`, trimmedUsername)
+    console.log(`${logPrefix} Searching for username:`, {
+      original: text,
+      trimmed: trimmedUsername,
+    })
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs[0]?.id) {

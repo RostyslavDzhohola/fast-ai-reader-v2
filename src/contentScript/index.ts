@@ -255,7 +255,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'find_username') {
     try {
-      console.log('%cSearching for username', 'color: #ff00ff; font-size: 16px;')
+      // Validate username before processing
+      if (!request.username || typeof request.username !== 'string') {
+        console.error('Invalid username received:', request.username)
+        return
+      }
+
+      const username = request.username.trim()
+      if (!username) {
+        console.error('Empty username after trimming')
+        return
+      }
+
+      console.log('%cSearching for username', 'color: #ff00ff; font-size: 16px;', {
+        raw: request.username,
+        processed: username,
+      })
 
       // First attempt: Try to clear existing search
       // Look for the 'X' button in the search bar to clear any existing search
@@ -283,7 +298,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // Create a clipboard event to simulate pasting text
           // This works better than directly setting textContent
           const clipboardData = new DataTransfer()
-          clipboardData.setData('text/plain', `from: ${request.username}`)
+          clipboardData.setData('text/plain', `from: ${username}`)
 
           // Create and dispatch a paste event
           // bubbles: true allows Discord to detect the change
@@ -324,14 +339,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
           }, 201) // Give Discord time to show search results
 
-          console.log('Successfully set search text:', request.username)
+          console.log('Successfully set search text:', username)
         }, 100)
       } else {
         console.log('No clear button found, proceeding with search')
         // ... rest of the existing search code ...
       }
     } catch (error) {
-      console.error('%cError in username search:', 'color: red; font-size: 16px;', error)
+      console.error('%cError in username search:', 'color: red; font-size: 16px;', {
+        error,
+        username: request.username,
+      })
     }
   }
 
